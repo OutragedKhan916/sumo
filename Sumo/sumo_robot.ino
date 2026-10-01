@@ -1,367 +1,1177 @@
 // ============================================================================
-// Besomi Academy 2026
-// Sumo Robot Educational Kit
-// ----------------------------------------------------------------------------
-// Version      : v1
-// Platform     : Arduino UNO Q
-// Compatibility: Arduino App Lab
-//
-// Description:
-// Educational autonomous Sumo Robot control software designed for robotics
-// training, STEM education, and beginner-to-intermediate robot competitions.
-//
-// Features:
-// - Push-button start system with 5-second competition delay
-// - Opponent detection using obstacle sensors
-// - Arena boundary detection using line sensors
-// - Autonomous search and attack behavior
-// - Real-time serial debugging output
-// - Motor driver control for differential drive robots
-//
-// Robot Behavior:
-// 1. Waits for the start button.
-// 2. Executes a 5-second competition countdown.
-// 3. Searches for an opponent.
-// 4. Attacks when an opponent is detected.
-// 5. Escapes when the arena boundary is detected.
-// 6. Returns to standby mode when stopped.
-//
-// Copyright (c) 2026 Besomi Academy.
-// All Rights Reserved.
-//
-// This software is provided as part of the Besomi Academy
-// Sumo Robot Educational Kit and is intended for educational,
-// training, and competition purposes.
-//
-// Author : Besomi Academy
-// Year   : 2026
+// PROACTIVE SUMO CONTROLLER
+// Arduino UNO Q
 // ============================================================================
 
-#include <Arduino_RouterBridge.h> // UNO Q internal routing bridge
-#define Serial Monitor            // Redirect Serial output to USB-C/App Lab
 
-// ===================== HARDWARE PIN DEFINITIONS =====================
+// ============================================================================
+// MOTOR PINS
+// ============================================================================
+
+const int M1_DIR = D7;
+const int M1_PWM = D9;
+
+const int M2_DIR = D8;
+const int M2_PWM = D10;
+
+const int M3_DIR = D12;
+const int M3_PWM = D5;
+
+const int M4_DIR = D13;
+const int M4_PWM = D6;
 
 
+// ============================================================================
+// OBSTACLE SENSORS
+// ============================================================================
 
-// LEFT MOTOR DRIVER CONNECTIONS
-const int LEFTMOTOR_REN_PIN = 2;   // Blue wire
-const int LEFTMOTOR_RPWM_PIN = 3;  // Purple wire
-const int LEFTMOTOR_LEN_PIN = 4;   // Green wire
-const int LEFTMOTOR_LPWM_PIN = 5;  // White wire
-
-// RIGHT MOTOR DRIVER CONNECTIONS
-const int RIGHTMOTOR_REN_PIN = 7;   // Blue wire
-const int RIGHTMOTOR_RPWM_PIN = 9;  // Purple wire
-const int RIGHTMOTOR_LEN_PIN = 8;   // Green wire
-const int RIGHTMOTOR_LPWM_PIN = 6;  // White wire
-
-// INPUT DEVICES
-const int SWITCH_PIN = A0;
-
-// IR  sensors
-const int OB_LEFT_PIN = D0;
-const int OB_RIGHT_PIN = D1;
-
-const int OB_BACK_RIGHT_PIN = D2;
-const int OB_BACK_LEFT_PIN = D3;
-
+const int OB_LEFT_PIN        = D0;
+const int OB_RIGHT_PIN       = D1;
+const int OB_BACK_RIGHT_PIN  = D2;
+const int OB_BACK_LEFT_PIN   = D3;
 const int OB_FRONT_RIGHT_PIN = D4;
-const int OB_FRONT_LEFT_PIN = D11;
+const int OB_FRONT_LEFT_PIN  = D11;
 
 
-// Arena boundary detection sensors
-const int LINE_FRONT_LEFT_PIN = A0;
+// ============================================================================
+// LINE SENSORS
+// ============================================================================
+
+const int LINE_FRONT_LEFT_PIN  = A0;
 const int LINE_FRONT_RIGHT_PIN = A1;
-const int LINE_BACK_LEFT_PIN = A4;
-const int LINE_BACK_RIGHT_PIN = A5;
+
+const int LINE_BACK_LEFT_PIN   = A4;
+const int LINE_BACK_RIGHT_PIN  = A5;
 
 
-const int ULTRA = A2;
+// ============================================================================
+// START BUTTON
+// ============================================================================
+
+const int START_BUTTON_PIN = A3;
 
 
+// ============================================================================
+// MOTOR DIRECTION
+// ============================================================================
 
-// ===================== ROBOT STATES & CONSTANTS =====================
+bool INVERT_M1 = false;
+bool INVERT_M2 = false;
 
-// Obstacle sensor states
-const int DETECTED = 0;
-const int CLEAR = 1;
-
-// Line sensor states
-const int WHITE = 0;
-const int BLACK = 1;
-
-
-// ===================== GLOBAL VARIABLES =====================
-
-// Start switch status
-bool switchPressed = false;
-
-// Robot operation status
-bool robotStarted = false;
-
-// Sensor readings
-int obstacleLeft, obstacleCenter, obstacleRight;
-int lineLeft, lineRight;
-
-// Last known opponent direction
-// 0 = left, 1 = right
-int lastDirection = 1;
+bool INVERT_M3 = true;
+bool INVERT_M4 = true;
 
 
-// ===================== MOTOR CONTROL FUNCTIONS =====================
+// ============================================================================
+// SPEEDS
+// ============================================================================
 
-// Enable all motor driver channels
-void enableMotors() {
-  digitalWrite(LEFTMOTOR_REN_PIN, HIGH);
-  digitalWrite(LEFTMOTOR_LEN_PIN, HIGH);
-  digitalWrite(RIGHTMOTOR_REN_PIN, HIGH);
-  digitalWrite(RIGHTMOTOR_LEN_PIN, HIGH);
+const int MAX_SPEED = 255;
+
+const int SEARCH_SPEED = 120;
+
+const int TRACK_SPEED = 150;
+
+const int TURN_SPEED = 190;
+
+const int ATTACK_SPEED = 255;
+
+const int DEFENSE_SPEED = 210;
+
+const int ESCAPE_SPEED = 255;
+
+const int TRAP_SPEED = 180;
+
+
+// ============================================================================
+// SENSOR STATES
+// ============================================================================
+
+const int SENSOR_DETECTED = LOW;
+const int LINE_DETECTED   = LOW;
+
+
+// ============================================================================
+// OPPONENT TRACKING
+// ============================================================================
+
+enum OpponentDirection {
+
+  OPP_NONE,
+  OPP_LEFT,
+  OPP_FRONT,
+  OPP_RIGHT,
+  OPP_BACK
+
+};
+
+
+enum OpponentMotion {
+
+  MOTION_UNKNOWN,
+  MOTION_APPROACHING,
+  MOTION_SLOW,
+  MOTION_MOVING_AWAY,
+  MOTION_CROSSING
+
+};
+
+
+OpponentDirection opponentDirection = OPP_NONE;
+
+OpponentMotion opponentMotion = MOTION_UNKNOWN;
+
+
+// Previous sensor state
+
+bool previousFL = false;
+bool previousFR = false;
+bool previousL  = false;
+bool previousR  = false;
+
+bool previousBL = false;
+bool previousBR = false;
+
+
+// Timing
+
+unsigned long previousTrackingTime = 0;
+
+unsigned long lastOpponentSeen = 0;
+
+unsigned long lastDecisionTime = 0;
+
+
+// How long the opponent has been visible
+
+unsigned long opponentVisibleSince = 0;
+
+
+// ============================================================================
+// MOTOR FUNCTION
+// ============================================================================
+
+void setMotor(
+  int dirPin,
+  int pwmPin,
+  int speed,
+  bool invert
+) {
+
+  speed = constrain(speed, -255, 255);
+
+  if (invert) {
+
+    speed = -speed;
+
+  }
+
+  if (speed > 0) {
+
+    digitalWrite(dirPin, HIGH);
+
+    analogWrite(pwmPin, speed);
+
+  }
+
+  else if (speed < 0) {
+
+    digitalWrite(dirPin, LOW);
+
+    analogWrite(pwmPin, -speed);
+
+  }
+
+  else {
+
+    analogWrite(pwmPin, 0);
+
+  }
+
 }
 
-// Immediately stop both drive motors
+
+// ============================================================================
+// DIFFERENTIAL DRIVE
+// ============================================================================
+
+void drive(int leftSpeed, int rightSpeed) {
+
+  setMotor(M1_DIR, M1_PWM, leftSpeed, INVERT_M1);
+
+  setMotor(M2_DIR, M2_PWM, leftSpeed, INVERT_M2);
+
+  setMotor(M3_DIR, M3_PWM, rightSpeed, INVERT_M3);
+
+  setMotor(M4_DIR, M4_PWM, rightSpeed, INVERT_M4);
+
+}
+
+
 void stopMotors() {
-  digitalWrite(LEFTMOTOR_LPWM_PIN, LOW);
-  digitalWrite(LEFTMOTOR_RPWM_PIN, LOW);
-  digitalWrite(RIGHTMOTOR_LPWM_PIN, LOW);
-  digitalWrite(RIGHTMOTOR_RPWM_PIN, LOW);
-}
 
-// Move robot forward
-void forward() {
-  digitalWrite(LEFTMOTOR_LPWM_PIN, HIGH);
-  digitalWrite(LEFTMOTOR_RPWM_PIN, LOW);
-  digitalWrite(RIGHTMOTOR_LPWM_PIN, HIGH);
-  digitalWrite(RIGHTMOTOR_RPWM_PIN, LOW);
-}
+  drive(0, 0);
 
-// Move robot backward
-void backward() {
-  digitalWrite(LEFTMOTOR_LPWM_PIN, LOW);
-  digitalWrite(LEFTMOTOR_RPWM_PIN, HIGH);
-  digitalWrite(RIGHTMOTOR_LPWM_PIN, LOW);
-  digitalWrite(RIGHTMOTOR_RPWM_PIN, HIGH);
-}
-
-// Rotate robot toward the left side
-void left() {
-  digitalWrite(LEFTMOTOR_LPWM_PIN, LOW);
-  digitalWrite(LEFTMOTOR_RPWM_PIN, HIGH);
-  digitalWrite(RIGHTMOTOR_LPWM_PIN, HIGH);
-  digitalWrite(RIGHTMOTOR_RPWM_PIN, LOW);
-}
-
-// Rotate robot toward the right side
-void right() {
-  digitalWrite(LEFTMOTOR_LPWM_PIN, HIGH);
-  digitalWrite(LEFTMOTOR_RPWM_PIN, LOW);
-  digitalWrite(RIGHTMOTOR_LPWM_PIN, LOW);
-  digitalWrite(RIGHTMOTOR_RPWM_PIN, HIGH);
 }
 
 
-// ===================== SENSOR ACQUISITION =====================
+void forward(int speed) {
 
-// Read all sensors and update robot state variables
-void readSensors() {
+  drive(speed, speed);
 
-  switchPressed = (digitalRead(SWITCH_PIN) == LOW);
-
-  obstacleLeft   = (digitalRead(OB_LEFT_PIN) == LOW) ? DETECTED : CLEAR;
-  obstacleCenter = (digitalRead(OB_CENTER_PIN) == LOW) ? DETECTED : CLEAR;
-  obstacleRight  = (digitalRead(OB_RIGHT_PIN) == LOW) ? DETECTED : CLEAR;
-
-  lineLeft  = (digitalRead(LINE_LEFT_PIN) == LOW) ? WHITE : BLACK;
-  lineRight = (digitalRead(LINE_RIGHT_PIN) == LOW) ? WHITE : BLACK;
 }
 
 
-// ===================== SERIAL DEBUG MONITOR =====================
+void backward(int speed) {
 
-// Print current robot status to the serial monitor
-void printDebug() {
+  drive(-speed, -speed);
 
-  Serial.print("SW: ");
-  Serial.print(switchPressed ? "ON" : "OFF");
-
-  Serial.print(" | OB [L C R]: ");
-  Serial.print(obstacleLeft == DETECTED ? "DET" : "CLR");
-  Serial.print(" ");
-  Serial.print(obstacleCenter == DETECTED ? "DET" : "CLR");
-  Serial.print(" ");
-  Serial.print(obstacleRight == DETECTED ? "DET" : "CLR");
-
-  Serial.print(" | LINE [L R]: ");
-  Serial.print(lineLeft == BLACK ? "BLK" : "WHT");
-  Serial.print(" ");
-  Serial.print(lineRight == BLACK ? "BLK" : "WHT");
-
-  Serial.print(" | DIR: ");
-  Serial.println(lastDirection == 0 ? "LEFT" : "RIGHT");
 }
 
 
-// ===================== STARTUP & COMPETITION SEQUENCE =====================
+void rotateLeft(int speed) {
 
-// Wait for the operator start command and perform countdown
+  drive(-speed, speed);
+
+}
+
+
+void rotateRight(int speed) {
+
+  drive(speed, -speed);
+
+}
+
+
+// ============================================================================
+// READ OPPONENT SENSORS
+// ============================================================================
+
+bool FL() {
+
+  return digitalRead(OB_FRONT_LEFT_PIN) == SENSOR_DETECTED;
+
+}
+
+
+bool FR() {
+
+  return digitalRead(OB_FRONT_RIGHT_PIN) == SENSOR_DETECTED;
+
+}
+
+
+bool L() {
+
+  return digitalRead(OB_LEFT_PIN) == SENSOR_DETECTED;
+
+}
+
+
+bool R() {
+
+  return digitalRead(OB_RIGHT_PIN) == SENSOR_DETECTED;
+
+}
+
+
+bool BL() {
+
+  return digitalRead(OB_BACK_LEFT_PIN) == SENSOR_DETECTED;
+
+}
+
+
+bool BR() {
+
+  return digitalRead(OB_BACK_RIGHT_PIN) == SENSOR_DETECTED;
+
+}
+
+
+// ============================================================================
+// OPPONENT DETECTION
+// ============================================================================
+
+bool opponentDetected() {
+
+  return FL() ||
+         FR() ||
+         L()  ||
+         R()  ||
+         BL() ||
+         BR();
+
+}
+
+
+// ============================================================================
+// DETERMINE OPPONENT DIRECTION
+// ============================================================================
+
+OpponentDirection getOpponentDirection() {
+
+  bool fl = FL();
+  bool fr = FR();
+
+  bool l = L();
+  bool r = R();
+
+  bool bl = BL();
+  bool br = BR();
+
+
+  // Directly in front
+
+  if (fl && fr) {
+
+    return OPP_FRONT;
+
+  }
+
+
+  // Front left
+
+  if (fl) {
+
+    return OPP_LEFT;
+
+  }
+
+
+  // Front right
+
+  if (fr) {
+
+    return OPP_RIGHT;
+
+  }
+
+
+  // Side left
+
+  if (l) {
+
+    return OPP_LEFT;
+
+  }
+
+
+  // Side right
+
+  if (r) {
+
+    return OPP_RIGHT;
+
+  }
+
+
+  // Rear
+
+  if (bl || br) {
+
+    return OPP_BACK;
+
+  }
+
+
+  return OPP_NONE;
+
+}
+
+
+// ============================================================================
+// OPPONENT MOTION ESTIMATION
+// ============================================================================
+//
+// We cannot measure exact velocity with binary IR sensors.
+//
+// Instead, we look at how the sensor pattern changes.
+//
+// Example:
+//
+// Previous:
+//       LEFT
+//
+// Current:
+//       FRONT
+//
+// This means the opponent moved toward us.
+//
+// ============================================================================
+
+void updateOpponentTracking() {
+
+  unsigned long now = millis();
+
+  bool fl = FL();
+  bool fr = FR();
+
+  bool l = L();
+  bool r = R();
+
+  bool bl = BL();
+  bool br = BR();
+
+
+  if (opponentDetected()) {
+
+    lastOpponentSeen = now;
+
+    if (opponentVisibleSince == 0) {
+
+      opponentVisibleSince = now;
+
+    }
+
+  }
+  else {
+
+    opponentVisibleSince = 0;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // APPROACHING
+  // ----------------------------------------------------------
+
+  bool previousSide =
+    previousFL ||
+    previousFR ||
+    previousL  ||
+    previousR;
+
+  bool currentFront =
+    fl || fr;
+
+
+  if (previousSide && currentFront) {
+
+    opponentMotion = MOTION_APPROACHING;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // FAST APPROACH
+  // ----------------------------------------------------------
+
+  bool previousRear =
+    previousBL ||
+    previousBR;
+
+
+  if (previousRear && currentFront) {
+
+    opponentMotion = MOTION_APPROACHING;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // CROSSING
+  // ----------------------------------------------------------
+
+  if ((previousFL && r) ||
+      (previousFR && l) ||
+      (previousL && fr) ||
+      (previousR && fl)) {
+
+    opponentMotion = MOTION_CROSSING;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // MOVING AWAY
+  // ----------------------------------------------------------
+
+  if ((previousFL || previousFR) &&
+      (bl || br)) {
+
+    opponentMotion = MOTION_MOVING_AWAY;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // SLOW / STABLE
+  // ----------------------------------------------------------
+
+  if (opponentDetected()) {
+
+    if (now - previousTrackingTime > 180) {
+
+      if (fl == previousFL &&
+          fr == previousFR &&
+          l  == previousL  &&
+          r  == previousR) {
+
+        opponentMotion = MOTION_SLOW;
+
+      }
+
+    }
+
+  }
+
+
+  // Save current state
+
+  previousFL = fl;
+  previousFR = fr;
+
+  previousL = l;
+  previousR = r;
+
+  previousBL = bl;
+  previousBR = br;
+
+  previousTrackingTime = now;
+
+
+  opponentDirection = getOpponentDirection();
+
+}
+
+
+// ============================================================================
+// LINE DETECTION
+// ============================================================================
+
+bool frontLeftLine() {
+
+  return digitalRead(LINE_FRONT_LEFT_PIN) == LINE_DETECTED;
+
+}
+
+
+bool frontRightLine() {
+
+  return digitalRead(LINE_FRONT_RIGHT_PIN) == LINE_DETECTED;
+
+}
+
+
+bool backLeftLine() {
+
+  return digitalRead(LINE_BACK_LEFT_PIN) == LINE_DETECTED;
+
+}
+
+
+bool backRightLine() {
+
+  return digitalRead(LINE_BACK_RIGHT_PIN) == LINE_DETECTED;
+
+}
+
+
+bool anyLineDetected() {
+
+  return frontLeftLine() ||
+         frontRightLine() ||
+         backLeftLine() ||
+         backRightLine();
+
+}
+
+
+// ============================================================================
+// AGGRESSIVE FRONT ESCAPE
+// ============================================================================
+//
+// The robot moves substantially away from the line before returning
+// to opponent tracking.
+//
+// ============================================================================
+
+void escapeFromFrontLeft() {
+
+  Serial.println("BOUNDARY FRONT LEFT");
+
+  backward(ESCAPE_SPEED);
+
+  delay(450);
+
+  rotateRight(ESCAPE_SPEED);
+
+  delay(450);
+
+}
+
+
+void escapeFromFrontRight() {
+
+  Serial.println("BOUNDARY FRONT RIGHT");
+
+  backward(ESCAPE_SPEED);
+
+  delay(450);
+
+  rotateLeft(ESCAPE_SPEED);
+
+  delay(450);
+
+}
+
+
+void escapeFromFront() {
+
+  Serial.println("BOUNDARY FRONT");
+
+  backward(ESCAPE_SPEED);
+
+  delay(550);
+
+  rotateRight(ESCAPE_SPEED);
+
+  delay(500);
+
+}
+
+
+void escapeFromBackLeft() {
+
+  Serial.println("BOUNDARY BACK LEFT");
+
+  forward(ESCAPE_SPEED);
+
+  delay(450);
+
+  rotateRight(ESCAPE_SPEED);
+
+  delay(450);
+
+}
+
+
+void escapeFromBackRight() {
+
+  Serial.println("BOUNDARY BACK RIGHT");
+
+  forward(ESCAPE_SPEED);
+
+  delay(450);
+
+  rotateLeft(ESCAPE_SPEED);
+
+  delay(450);
+
+}
+
+
+void escapeFromBack() {
+
+  Serial.println("BOUNDARY BACK");
+
+  forward(ESCAPE_SPEED);
+
+  delay(550);
+
+  rotateRight(ESCAPE_SPEED);
+
+  delay(500);
+
+}
+
+
+// ============================================================================
+// BOUNDARY CONTROLLER
+// ============================================================================
+
+bool handleBoundary() {
+
+  bool fl = frontLeftLine();
+  bool fr = frontRightLine();
+
+  bool bl = backLeftLine();
+  bool br = backRightLine();
+
+
+  // Front gets highest priority
+
+  if (fl && fr) {
+
+    escapeFromFront();
+
+    return true;
+
+  }
+
+
+  if (fl) {
+
+    escapeFromFrontLeft();
+
+    return true;
+
+  }
+
+
+  if (fr) {
+
+    escapeFromFrontRight();
+
+    return true;
+
+  }
+
+
+  // Rear
+
+  if (bl && br) {
+
+    escapeFromBack();
+
+    return true;
+
+  }
+
+
+  if (bl) {
+
+    escapeFromBackLeft();
+
+    return true;
+
+  }
+
+
+  if (br) {
+
+    escapeFromBackRight();
+
+    return true;
+
+  }
+
+
+  return false;
+
+}
+
+
+// ============================================================================
+// ATTACK
+// ============================================================================
+
+void attackFront() {
+
+  Serial.println("OFFENSE: ATTACK");
+
+  forward(ATTACK_SPEED);
+
+}
+
+
+// ============================================================================
+// INTERCEPT
+// ============================================================================
+//
+// If the opponent is approaching rapidly, do not simply chase it.
+//
+// Turn toward its path and intercept it.
+//
+// ============================================================================
+
+void interceptOpponent() {
+
+  Serial.println("TACTIC: INTERCEPT");
+
+
+  if (opponentDirection == OPP_LEFT) {
+
+    drive(
+      -TRAP_SPEED,
+      TRAP_SPEED
+    );
+
+  }
+
+  else if (opponentDirection == OPP_RIGHT) {
+
+    drive(
+      TRAP_SPEED,
+      -TRAP_SPEED
+    );
+
+  }
+
+  else {
+
+    forward(TRAP_SPEED);
+
+  }
+
+}
+
+
+// ============================================================================
+// DEFENSE
+// ============================================================================
+
+void defensiveResponse() {
+
+  Serial.println("TACTIC: DEFENSE");
+
+
+  // Keep the robot moving.
+  // Do not sit still and allow a straight push.
+
+  if (opponentDirection == OPP_LEFT) {
+
+    drive(
+      DEFENSE_SPEED / 2,
+      DEFENSE_SPEED
+    );
+
+  }
+
+  else if (opponentDirection == OPP_RIGHT) {
+
+    drive(
+      DEFENSE_SPEED,
+      DEFENSE_SPEED / 2
+    );
+
+  }
+
+  else {
+
+    forward(DEFENSE_SPEED);
+
+  }
+
+}
+
+
+// ============================================================================
+// SEARCH
+// ============================================================================
+
+void searchOpponent() {
+
+  static unsigned long searchTimer = 0;
+
+  static bool direction = false;
+
+
+  if (millis() - searchTimer > 700) {
+
+    direction = !direction;
+
+    searchTimer = millis();
+
+  }
+
+
+  if (direction) {
+
+    rotateRight(SEARCH_SPEED);
+
+  }
+
+  else {
+
+    rotateLeft(SEARCH_SPEED);
+
+  }
+
+}
+
+
+// ============================================================================
+// MAIN PROACTIVE DECISION
+// ============================================================================
+
+void proactiveController() {
+
+  updateOpponentTracking();
+
+
+  // ==========================================================
+  // PRIORITY 1
+  // BOUNDARY
+  // ==========================================================
+
+  if (handleBoundary()) {
+
+    return;
+
+  }
+
+
+  // ==========================================================
+  // NO OPPONENT
+  // SEARCH
+  // ==========================================================
+
+  if (!opponentDetected()) {
+
+    searchOpponent();
+
+    return;
+
+  }
+
+
+  // ==========================================================
+  // OPPONENT APPROACHING QUICKLY
+  // INTERCEPT / TRAP
+  // ==========================================================
+
+  if (opponentMotion == MOTION_APPROACHING) {
+
+    interceptOpponent();
+
+    return;
+
+  }
+
+
+  // ==========================================================
+  // OPPONENT CROSSING
+  // TURN INTO ITS PATH
+  // ==========================================================
+
+  if (opponentMotion == MOTION_CROSSING) {
+
+    Serial.println("TACTIC: CUT OFF");
+
+
+    if (opponentDirection == OPP_LEFT) {
+
+      rotateLeft(TURN_SPEED);
+
+    }
+
+    else if (opponentDirection == OPP_RIGHT) {
+
+      rotateRight(TURN_SPEED);
+
+    }
+
+    else {
+
+      forward(ATTACK_SPEED);
+
+    }
+
+    return;
+
+  }
+
+
+  // ==========================================================
+  // OPPONENT SLOW OR STATIONARY
+  // ATTACK
+  // ==========================================================
+
+  if (opponentMotion == MOTION_SLOW) {
+
+    if (opponentDirection == OPP_FRONT) {
+
+      attackFront();
+
+    }
+
+    else if (opponentDirection == OPP_LEFT) {
+
+      rotateLeft(TURN_SPEED);
+
+    }
+
+    else if (opponentDirection == OPP_RIGHT) {
+
+      rotateRight(TURN_SPEED);
+
+    }
+
+    else {
+
+      forward(ATTACK_SPEED);
+
+    }
+
+    return;
+
+  }
+
+
+  // ==========================================================
+  // OPPONENT MOVING AWAY
+  // PURSUE
+  // ==========================================================
+
+  if (opponentMotion == MOTION_MOVING_AWAY) {
+
+    Serial.println("TACTIC: PURSUIT");
+
+    forward(ATTACK_SPEED);
+
+    return;
+
+  }
+
+
+  // ==========================================================
+  // UNKNOWN
+  // DEFAULT TO AGGRESSIVE TRACKING
+  // ==========================================================
+
+  if (opponentDirection == OPP_LEFT) {
+
+    rotateLeft(TRACK_SPEED);
+
+  }
+
+  else if (opponentDirection == OPP_RIGHT) {
+
+    rotateRight(TRACK_SPEED);
+
+  }
+
+  else {
+
+    forward(TRACK_SPEED);
+
+  }
+
+}
+
+
+// ============================================================================
+// START
+// ============================================================================
+
 void waitForStart() {
-
-  robotStarted = false;
-
-  // Robot standby indication
-  digitalWrite(RED_LED_PIN, HIGH);
-  digitalWrite(YELLOW_LED_PIN, LOW);
-  digitalWrite(GREEN_LED_PIN, LOW);
 
   stopMotors();
 
-  Serial.println("Waiting for start...");
+  Serial.println("================================");
+  Serial.println("SUMO ROBOT READY");
+  Serial.println("Press START");
+  Serial.println("================================");
 
-  // Wait for switch release
-  while (switchPressed == true) {
-    readSensors();
-    printDebug();
+
+  while (digitalRead(START_BUTTON_PIN) == LOW) {
+
+    delay(10);
+
   }
 
-  // Wait for switch press
-  while (switchPressed == false) {
-    readSensors();
-    printDebug();
+
+  while (digitalRead(START_BUTTON_PIN) == HIGH) {
+
+    delay(10);
+
   }
 
-  // Competition countdown
-  digitalWrite(RED_LED_PIN, LOW);
-  digitalWrite(YELLOW_LED_PIN, HIGH);
-  digitalWrite(GREEN_LED_PIN, LOW);
 
-  Serial.println("Starting in 5 seconds...");
-  delay(5000);
+  Serial.println("START");
 
-  // Robot active indication
-  digitalWrite(RED_LED_PIN, LOW);
-  digitalWrite(YELLOW_LED_PIN, LOW);
-  digitalWrite(GREEN_LED_PIN, HIGH);
+
+  for (int i = 5; i >= 1; i--) {
+
+    Serial.print("Starting in ");
+    Serial.println(i);
+
+    delay(1000);
+
+  }
+
+
+  Serial.println("GO!");
 
   robotStarted = true;
+
 }
 
 
-// ===================== ARDUINO SETUP =====================
+// ============================================================================
+// SETUP
+// ============================================================================
 
-// Arduino initialization routine
+bool robotStarted = false;
+
+
 void setup() {
 
-  // Initialize the UNO Q hardware bridge
-  Bridge.begin();
+  Serial.begin(115200);
 
-  // Initialize serial communication
-  Serial.begin(9600);
+  delay(1000);
 
-  // Allow App Lab connection to initialize
-  delay(1500);
 
-  // LED outputs
-  pinMode(RED_LED_PIN, OUTPUT);
-  pinMode(YELLOW_LED_PIN, OUTPUT);
-  pinMode(GREEN_LED_PIN, OUTPUT);
+  // Motors
 
-  // Left motor driver outputs
-  pinMode(LEFTMOTOR_REN_PIN, OUTPUT);
-  pinMode(LEFTMOTOR_RPWM_PIN, OUTPUT);
-  pinMode(LEFTMOTOR_LEN_PIN, OUTPUT);
-  pinMode(LEFTMOTOR_LPWM_PIN, OUTPUT);
+  pinMode(M1_DIR, OUTPUT);
+  pinMode(M1_PWM, OUTPUT);
 
-  // Right motor driver outputs
-  pinMode(RIGHTMOTOR_REN_PIN, OUTPUT);
-  pinMode(RIGHTMOTOR_RPWM_PIN, OUTPUT);
-  pinMode(RIGHTMOTOR_LEN_PIN, OUTPUT);
-  pinMode(RIGHTMOTOR_LPWM_PIN, OUTPUT);
+  pinMode(M2_DIR, OUTPUT);
+  pinMode(M2_PWM, OUTPUT);
 
-  // Start switch input
-  pinMode(SWITCH_PIN, INPUT_PULLUP);
+  pinMode(M3_DIR, OUTPUT);
+  pinMode(M3_PWM, OUTPUT);
 
-  // Opponent sensors
+
+  pinMode(M4_DIR, OUTPUT);
+  pinMode(M4_PWM, OUTPUT);
+
+
+  // Obstacles
+
   pinMode(OB_LEFT_PIN, INPUT);
-  pinMode(OB_CENTER_PIN, INPUT);
   pinMode(OB_RIGHT_PIN, INPUT);
 
-  // Line sensors
-  pinMode(LINE_LEFT_PIN, INPUT);
-  pinMode(LINE_RIGHT_PIN, INPUT);
+  pinMode(OB_BACK_RIGHT_PIN, INPUT);
+  pinMode(OB_BACK_LEFT_PIN, INPUT);
 
-  // Enable motor drivers
-  enableMotors();
+  pinMode(OB_FRONT_RIGHT_PIN, INPUT);
+  pinMode(OB_FRONT_LEFT_PIN, INPUT);
 
-  // Enter startup sequence
+
+  // Lines
+
+  pinMode(LINE_FRONT_LEFT_PIN, INPUT);
+  pinMode(LINE_FRONT_RIGHT_PIN, INPUT);
+
+  pinMode(LINE_BACK_LEFT_PIN, INPUT);
+  pinMode(LINE_BACK_RIGHT_PIN, INPUT);
+
+
+  // Start
+
+  pinMode(START_BUTTON_PIN, INPUT_PULLUP);
+
+
+  stopMotors();
+
+  delay(500);
+
   waitForStart();
+
 }
 
 
-// ===================== MAIN ROBOT LOGIC =====================
+// ============================================================================
+// LOOP
+// ============================================================================
 
-// Main autonomous robot control loop
 void loop() {
 
-  readSensors();
-  printDebug();
-
-  // STOP MODE
-  // Return robot to standby when switch is released
-  if (switchPressed == false) {
-
-    stopMotors();
-
-    digitalWrite(RED_LED_PIN, HIGH);
-    digitalWrite(GREEN_LED_PIN, LOW);
+  if (!robotStarted) {
 
     waitForStart();
+
     return;
+
   }
 
-  // LINE ESCAPE
-  // Retreat from arena boundary to avoid ring-out
-  if (lineLeft == WHITE || lineRight == WHITE) {
 
-    Serial.println("ACTION: LINE ESCAPE");
+  proactiveController();
 
-    backward();
-    delay(600);
+  delay(5);
 
-    left();
-    delay(600);
-  }
-
-  // ATTACK MODE
-  // Move forward when opponent is directly ahead
-  else if (obstacleCenter == DETECTED) {
-
-    Serial.println("ACTION: ATTACK");
-    forward();
-  }
-
-  // TARGET DETECTED ON LEFT SIDE
-  else if (obstacleLeft == DETECTED) {
-
-    Serial.println("ACTION: LEFT TARGET");
-
-    lastDirection = 0;
-    left();
-  }
-
-  // TARGET DETECTED ON RIGHT SIDE
-  else if (obstacleRight == DETECTED) {
-
-    Serial.println("ACTION: RIGHT TARGET");
-
-    lastDirection = 1;
-    right();
-  }
-
-  // SEARCH MODE
-  // Continue moving while looking for an opponent
-  else {
-
-    Serial.println("ACTION: SEARCH");
-    forward();
-  }
 }
