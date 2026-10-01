@@ -42,10 +42,7 @@
 
 // ===================== HARDWARE PIN DEFINITIONS =====================
 
-// Status LEDs
-const int RED_LED_PIN = 11;
-const int YELLOW_LED_PIN = 13;
-const int GREEN_LED_PIN = 12;
+
 
 // LEFT MOTOR DRIVER CONNECTIONS
 const int LEFTMOTOR_REN_PIN = 2;   // Blue wire
@@ -62,14 +59,26 @@ const int RIGHTMOTOR_LPWM_PIN = 6;  // White wire
 // INPUT DEVICES
 const int SWITCH_PIN = A0;
 
-// Opponent detection sensors
-const int OB_LEFT_PIN = A3;
-const int OB_CENTER_PIN = A2;
-const int OB_RIGHT_PIN = A1;
+// IR  sensors
+const int OB_LEFT_PIN = D0;
+const int OB_RIGHT_PIN = D1;
+
+const int OB_BACK_RIGHT_PIN = D2;
+const int OB_BACK_LEFT_PIN = D3;
+
+const int OB_FRONT_RIGHT_PIN = D4;
+const int OB_FRONT_LEFT_PIN = D11;
+
 
 // Arena boundary detection sensors
-const int LINE_LEFT_PIN = A5;
-const int LINE_RIGHT_PIN = A4;
+const int LINE_FRONT_LEFT_PIN = A0;
+const int LINE_FRONT_RIGHT_PIN = A1;
+const int LINE_BACK_LEFT_PIN = A4;
+const int LINE_BACK_RIGHT_PIN = A5;
+
+
+const int ULTRA = A2;
+
 
 
 // ===================== ROBOT STATES & CONSTANTS =====================
