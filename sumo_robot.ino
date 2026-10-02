@@ -7,28 +7,26 @@
 // SENSOR CONFIGURATION
 // ============================================================================
 //
-// IR SENSORS: 5
+// IR SENSORS: 3
 //
-// D2 = FRONT LEFT IR
+// D4 = FRONT LEFT IR
 // D0 = FRONT RIGHT IR
-// D1 = LEFT IR
-// D3 = RIGHT IR           needs to be flipped
-// D4 = BACK CENTER IR
+// D2 = BACK IR
 //
 // LINE SENSORS: 3
 //
-// A0 = FRONT LEFT LINE
-// A1 = FRONT RIGHT LINE
-// A4 = BACK CENTER LINE
+// A1 = FRONT LEFT LINE
+// A3 = FRONT RIGHT LINE
+// A5 = BACK CENTER LINE
 //
 // ULTRASONIC:
 //
-// A2 = TRIG
-// A3 = ECHO
+// D11 = TRIG
+// A0  = ECHO
 //
 // START BUTTON:
 //
-// D11 = START BUTTON
+// D1 = START BUTTON
 //
 // ============================================================================
 
@@ -67,38 +65,36 @@ const bool INVERT_M4 = true;
 // IR SENSOR PINS
 // ============================================================================
 
-const int IR_FRONT_LEFT_PIN  = D2;
+const int IR_FRONT_LEFT_PIN  = D4;
 const int IR_FRONT_RIGHT_PIN = D0;
+const int IR_BACK_PIN         = D2;
 
-const int IR_LEFT_PIN  = D1;
-const int IR_RIGHT_PIN = D3;
-
-const int IR_BACK_PIN = D4;
+// No dedicated left/right side IR sensors in the current 3-IR layout.
 
 
 // ============================================================================
 // LINE SENSOR PINS
 // ============================================================================
 
-const int LINE_FRONT_LEFT_PIN  = A0;
-const int LINE_FRONT_RIGHT_PIN = A1;
+const int LINE_FRONT_LEFT_PIN  = A1;
+const int LINE_FRONT_RIGHT_PIN = A3;
 
-const int LINE_BACK_PIN = A4;
+const int LINE_BACK_PIN = A5;
 
 
 // ============================================================================
 // START BUTTON
 // ============================================================================
 
-const int START_BUTTON_PIN = D11;
+const int START_BUTTON_PIN = D1;
 
 
 // ============================================================================
 // ULTRASONIC
 // ============================================================================
 
-const int ULTRASONIC_TRIG_PIN = A2;
-const int ULTRASONIC_ECHO_PIN = A3;
+const int ULTRASONIC_TRIG_PIN = D11;
+const int ULTRASONIC_ECHO_PIN = A0;
 
 
 // ============================================================================
@@ -518,18 +514,16 @@ bool FR() {
 
 bool L() {
 
-  return digitalRead(
-    IR_LEFT_PIN
-  ) == SENSOR_DETECTED;
+  // No dedicated left-side IR sensor in the current 3-IR layout.
+  return false;
 
 }
 
 
 bool R() {
 
-  return digitalRead(
-    IR_RIGHT_PIN
-  ) == SENSOR_DETECTED;
+  // No dedicated right-side IR sensor in the current 3-IR layout.
+  return false;
 
 }
 
@@ -2283,7 +2277,7 @@ void proactiveController() {
 // START BUTTON
 // ============================================================================
 //
-// D11 connected to button.
+// D1 connected to button.
 // Other side of button connected to GND.
 //
 // INPUT_PULLUP means:
@@ -2499,15 +2493,7 @@ void setup() {
     INPUT_PULLUP
   );
 
-  pinMode(
-    IR_LEFT_PIN,
-    INPUT_PULLUP
-  );
-
-  pinMode(
-    IR_RIGHT_PIN,
-    INPUT_PULLUP
-  );
+  // No dedicated left/right side IR sensors in the current layout.
 
   pinMode(
     IR_BACK_PIN,
