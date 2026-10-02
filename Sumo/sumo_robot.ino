@@ -3,15 +3,35 @@
 // PROACTIVE SUMO ROBOT CONTROLLER
 // Arduino UNO Q
 //
-// MOTOR DRIVER:
-// Pololu Dual G2 High-Power Motor Driver configuration
+// ============================================================================
+// SENSOR CONFIGURATION
+// ============================================================================
 //
-// IMPORTANT:
-// This program controls four motor channels directly using DIR + PWM.
-// The Pololu shield supports remapped control pins.
+// IR SENSORS: 5
+//
+// D0 = FRONT LEFT IR
+// D1 = FRONT RIGHT IR
+// D2 = LEFT IR
+// D3 = RIGHT IR
+// D4 = BACK CENTER IR
+//
+// LINE SENSORS: 3
+//
+// A0 = FRONT LEFT LINE
+// A1 = FRONT RIGHT LINE
+// A4 = BACK CENTER LINE
+//
+// ULTRASONIC:
+//
+// A2 = TRIG
+// A3 = ECHO
+//
+// START BUTTON:
+//
+// D11 = START BUTTON
+//
 // ============================================================================
 
-#include <Arduino_RouterBridge.h>
 
 // ============================================================================
 // MOTOR PINS
@@ -33,78 +53,67 @@ const int M4_PWM = D6;
 
 
 // ============================================================================
-// OBSTACLE SENSORS
+// MOTOR INVERSION
 // ============================================================================
 
-const int OB_LEFT_PIN        = D0;
-const int OB_RIGHT_PIN       = D1;
+const bool INVERT_M1 = false;
+const bool INVERT_M2 = false;
 
-const int OB_BACK_RIGHT_PIN  = D2;
-const int OB_BACK_LEFT_PIN   = D3;
-
-const int OB_FRONT_RIGHT_PIN = D4;
-const int OB_FRONT_LEFT_PIN  = D11;
+const bool INVERT_M3 = true;
+const bool INVERT_M4 = true;
 
 
 // ============================================================================
-// LINE SENSORS
+// IR SENSOR PINS
+// ============================================================================
+
+const int IR_FRONT_LEFT_PIN  = D0;
+const int IR_FRONT_RIGHT_PIN = D1;
+
+const int IR_LEFT_PIN  = D2;
+const int IR_RIGHT_PIN = D3;
+
+const int IR_BACK_PIN = D4;
+
+
+// ============================================================================
+// LINE SENSOR PINS
 // ============================================================================
 
 const int LINE_FRONT_LEFT_PIN  = A0;
 const int LINE_FRONT_RIGHT_PIN = A1;
 
-const int LINE_BACK_LEFT_PIN   = A4;
-const int LINE_BACK_RIGHT_PIN  = A5;
+const int LINE_BACK_PIN = A4;
 
 
 // ============================================================================
-// ULTRASONIC SENSOR
+// START BUTTON
 // ============================================================================
-//
-// Your connection list gives A2 as "Ultrasonic Signal".
-//
-// This code assumes a single-wire ultrasonic sensor where the same pin
-// is used for trigger and echo.
-//
-// If your sensor is HC-SR04, DO NOT use this configuration.
-// HC-SR04 normally requires separate TRIG and ECHO pins.
-//
 
-const int ULTRASONIC_PIN = A2;
+const int START_BUTTON_PIN = D11;
 
 
 // ============================================================================
-// START
+// ULTRASONIC
 // ============================================================================
-//
-// Your listed wiring has no separate start-button pin.
-//
-// Therefore the robot automatically waits 5 seconds after power/reset.
-//
-// If your competition has an external start system, we can add it once
-// you provide its exact pin.
-//
 
-const unsigned long START_DELAY = 5000;
+const int ULTRASONIC_TRIG_PIN = A2;
+const int ULTRASONIC_ECHO_PIN = A3;
 
 
 // ============================================================================
-// MOTOR DIRECTION
+// SENSOR LOGIC
 // ============================================================================
 //
-// Test the robot with its wheels lifted.
+// MZ80-style NPN outputs normally need a pull-up.
+// All sensor pins therefore use INPUT_PULLUP.
 //
-// When positive speed is commanded, all four wheels should produce
-// forward motion.
-//
-// Change these if necessary.
+// LOW = DETECTED
+// HIGH = NOT DETECTED
 //
 
-bool INVERT_M1 = false;
-bool INVERT_M2 = false;
-
-bool INVERT_M3 = true;
-bool INVERT_M4 = true;
+const int SENSOR_DETECTED = LOW;
+const int LINE_DETECTED   = LOW;
 
 
 // ============================================================================
@@ -127,12 +136,10 @@ const int INTERCEPT_SPEED = 220;
 
 
 // ============================================================================
-// SENSOR LOGIC
+// OPENING MOVE
 // ============================================================================
 
-const int SENSOR_DETECTED = LOW;
-
-const int LINE_DETECTED = LOW;
+const unsigned long OPENING_MOVE_DURATION = 250;
 
 
 // ============================================================================
@@ -141,34 +148,40 @@ const int LINE_DETECTED = LOW;
 
 const float SOUND_SPEED_CM_PER_US = 0.0343;
 
-// Maximum useful distance for Sumo
-const float MAX_TARGET_DISTANCE = 250.0;
-
-// Ignore readings closer than this because they may be invalid
 const float MIN_TARGET_DISTANCE = 3.0;
 
-// Ultrasonic update period
+const float MAX_TARGET_DISTANCE = 250.0;
+
 const unsigned long ULTRASONIC_INTERVAL = 30;
 
-// Pulse timeout
-const unsigned long ULTRASONIC_TIMEOUT = 15000;
+const unsigned long ULTRASONIC_TIMEOUT = 8000;
 
 
 // ============================================================================
-// CLOSING SPEED
+// MOTION DETECTION SETTINGS
 // ============================================================================
-//
-// Positive closing speed means the opponent is getting closer.
-//
-// Example:
-//
-// Previous distance = 100 cm
-// Current distance  = 90 cm
-// Time              = 0.1 s
-//
-// Closing speed = (100 - 90) / 0.1
-//               = 100 cm/s
-//
+
+const float FAST_CLOSING_SPEED = 80.0;
+
+const float SLOW_CLOSING_SPEED = 15.0;
+
+const float MOVING_AWAY_SPEED = -20.0;
+
+const unsigned long IR_SLOW_THRESHOLD = 180;
+
+
+// ============================================================================
+// LAST-SEEN SETTINGS
+// ============================================================================
+
+const unsigned long LAST_SEEN_MEMORY = 500;
+
+const unsigned long LAST_SEEN_TURN_TIME = 250;
+
+
+// ============================================================================
+// ULTRASONIC VARIABLES
+// ============================================================================
 
 float ultrasonicDistance = -1.0;
 
@@ -183,11 +196,6 @@ float closingAcceleration = 0.0;
 unsigned long previousDistanceTime = 0;
 
 unsigned long lastUltrasonicRead = 0;
-
-
-// ============================================================================
-// ULTRASONIC VALIDITY
-// ============================================================================
 
 bool ultrasonicValid = false;
 
@@ -212,6 +220,8 @@ enum OpponentDirection {
 
 
 OpponentDirection opponentDirection = OPP_NONE;
+
+OpponentDirection lastOpponentDirection = OPP_NONE;
 
 
 // ============================================================================
@@ -239,7 +249,7 @@ OpponentMotion opponentMotion = MOTION_UNKNOWN;
 
 
 // ============================================================================
-// PREVIOUS IR SENSOR STATE
+// PREVIOUS IR STATES
 // ============================================================================
 
 bool previousFL = false;
@@ -249,22 +259,21 @@ bool previousL = false;
 bool previousR = false;
 
 bool previousBL = false;
-bool previousBR = false;
 
 
 // ============================================================================
-// OPPONENT TRACKING
+// TRACKING TIMERS
 // ============================================================================
 
 unsigned long lastOpponentSeen = 0;
 
-unsigned long lastPatternChange = 0;
+unsigned long lastPatternChangeTime = 0;
 
 unsigned long lastTrackingUpdate = 0;
 
 
 // ============================================================================
-// BOUNDARY ESCAPE STATE
+// BOUNDARY ESCAPE
 // ============================================================================
 
 enum EscapeState {
@@ -273,17 +282,9 @@ enum EscapeState {
 
   ESCAPE_BACK_FROM_FRONT,
 
-  ESCAPE_TURN_FROM_FRONT_LEFT,
-
-  ESCAPE_TURN_FROM_FRONT_RIGHT,
+  ESCAPE_TURN_FROM_FRONT,
 
   ESCAPE_FORWARD_FROM_BACK,
-
-  ESCAPE_TURN_FROM_BACK_LEFT,
-
-  ESCAPE_TURN_FROM_BACK_RIGHT,
-
-  ESCAPE_TURN_FROM_FRONT,
 
   ESCAPE_TURN_FROM_BACK
 
@@ -297,13 +298,34 @@ unsigned long escapeStarted = 0;
 unsigned long escapeDuration = 0;
 
 
+// false = right
+// true  = left
+
+bool escapeTurnLeft = false;
+
+
 // ============================================================================
 // ROBOT STATE
 // ============================================================================
 
 bool robotStarted = false;
 
-unsigned long robotStartTime = 0;
+bool openingMoveActive = false;
+
+unsigned long openingMoveStarted = 0;
+
+
+// ============================================================================
+// SEARCH STATE
+// ============================================================================
+
+bool searchDirectionLeft = false;
+
+unsigned long searchDirectionChanged = 0;
+
+unsigned long lastSeenTurnStarted = 0;
+
+bool lastSeenTurnActive = false;
 
 
 // ============================================================================
@@ -320,17 +342,17 @@ void setMotor(
   speed = constrain(speed, -255, 255);
 
   if (invert) {
-
     speed = -speed;
-
   }
-
 
   if (speed > 0) {
 
     digitalWrite(dirPin, HIGH);
 
-    analogWrite(pwmPin, speed);
+    analogWrite(
+      pwmPin,
+      speed
+    );
 
   }
 
@@ -338,13 +360,19 @@ void setMotor(
 
     digitalWrite(dirPin, LOW);
 
-    analogWrite(pwmPin, -speed);
+    analogWrite(
+      pwmPin,
+      -speed
+    );
 
   }
 
   else {
 
-    analogWrite(pwmPin, 0);
+    analogWrite(
+      pwmPin,
+      0
+    );
 
   }
 
@@ -352,14 +380,25 @@ void setMotor(
 
 
 // ============================================================================
-// DIFFERENTIAL DRIVE
+// DRIVE
 // ============================================================================
 
-void drive(int leftSpeed, int rightSpeed) {
+void drive(
+  int leftSpeed,
+  int rightSpeed
+) {
 
-  leftSpeed = constrain(leftSpeed, -255, 255);
+  leftSpeed = constrain(
+    leftSpeed,
+    -255,
+    255
+  );
 
-  rightSpeed = constrain(rightSpeed, -255, 255);
+  rightSpeed = constrain(
+    rightSpeed,
+    -255,
+    255
+  );
 
 
   setMotor(
@@ -369,7 +408,6 @@ void drive(int leftSpeed, int rightSpeed) {
     INVERT_M1
   );
 
-
   setMotor(
     M2_DIR,
     M2_PWM,
@@ -377,14 +415,12 @@ void drive(int leftSpeed, int rightSpeed) {
     INVERT_M2
   );
 
-
   setMotor(
     M3_DIR,
     M3_PWM,
     rightSpeed,
     INVERT_M3
   );
-
 
   setMotor(
     M4_DIR,
@@ -402,81 +438,323 @@ void drive(int leftSpeed, int rightSpeed) {
 
 void stopMotors() {
 
-  drive(0, 0);
+  drive(
+    0,
+    0
+  );
 
 }
 
 
-void forward(int speed) {
+void forward(
+  int speed
+) {
 
-  drive(speed, speed);
-
-}
-
-
-void backward(int speed) {
-
-  drive(-speed, -speed);
+  drive(
+    speed,
+    speed
+  );
 
 }
 
 
-void rotateLeft(int speed) {
+void backward(
+  int speed
+) {
 
-  drive(-speed, speed);
+  drive(
+    -speed,
+    -speed
+  );
 
 }
 
 
-void rotateRight(int speed) {
+void rotateLeft(
+  int speed
+) {
 
-  drive(speed, -speed);
+  drive(
+    -speed,
+    speed
+  );
+
+}
+
+
+void rotateRight(
+  int speed
+) {
+
+  drive(
+    speed,
+    -speed
+  );
 
 }
 
 
 // ============================================================================
-// IR SENSOR FUNCTIONS
+// IR READ FUNCTIONS
 // ============================================================================
 
 bool FL() {
 
-  return digitalRead(OB_FRONT_LEFT_PIN) == SENSOR_DETECTED;
+  return digitalRead(
+    IR_FRONT_LEFT_PIN
+  ) == SENSOR_DETECTED;
 
 }
 
 
 bool FR() {
 
-  return digitalRead(OB_FRONT_RIGHT_PIN) == SENSOR_DETECTED;
+  return digitalRead(
+    IR_FRONT_RIGHT_PIN
+  ) == SENSOR_DETECTED;
 
 }
 
 
 bool L() {
 
-  return digitalRead(OB_LEFT_PIN) == SENSOR_DETECTED;
+  return digitalRead(
+    IR_LEFT_PIN
+  ) == SENSOR_DETECTED;
 
 }
 
 
 bool R() {
 
-  return digitalRead(OB_RIGHT_PIN) == SENSOR_DETECTED;
+  return digitalRead(
+    IR_RIGHT_PIN
+  ) == SENSOR_DETECTED;
 
 }
 
 
 bool BL() {
 
-  return digitalRead(OB_BACK_LEFT_PIN) == SENSOR_DETECTED;
+  return digitalRead(
+    IR_BACK_PIN
+  ) == SENSOR_DETECTED;
 
 }
 
 
-bool BR() {
+// ============================================================================
+// LINE READ FUNCTIONS
+// ============================================================================
 
-  return digitalRead(OB_BACK_RIGHT_PIN) == SENSOR_DETECTED;
+bool frontLeftLine() {
+
+  return digitalRead(
+    LINE_FRONT_LEFT_PIN
+  ) == LINE_DETECTED;
+
+}
+
+
+bool frontRightLine() {
+
+  return digitalRead(
+    LINE_FRONT_RIGHT_PIN
+  ) == LINE_DETECTED;
+
+}
+
+
+bool backLine() {
+
+  return digitalRead(
+    LINE_BACK_PIN
+  ) == LINE_DETECTED;
+
+}
+
+
+// ============================================================================
+// ULTRASONIC READ
+// ============================================================================
+
+float readUltrasonic() {
+
+  digitalWrite(
+    ULTRASONIC_TRIG_PIN,
+    LOW
+  );
+
+  delayMicroseconds(2);
+
+  digitalWrite(
+    ULTRASONIC_TRIG_PIN,
+    HIGH
+  );
+
+  delayMicroseconds(10);
+
+  digitalWrite(
+    ULTRASONIC_TRIG_PIN,
+    LOW
+  );
+
+
+  unsigned long duration =
+    pulseIn(
+      ULTRASONIC_ECHO_PIN,
+      HIGH,
+      ULTRASONIC_TIMEOUT
+    );
+
+
+  if (duration == 0) {
+
+    return -1.0;
+
+  }
+
+
+  float distance =
+    (
+      duration *
+      SOUND_SPEED_CM_PER_US
+    ) / 2.0;
+
+
+  if (
+    distance < MIN_TARGET_DISTANCE ||
+    distance > MAX_TARGET_DISTANCE
+  ) {
+
+    return -1.0;
+
+  }
+
+
+  return distance;
+
+}
+
+
+// ============================================================================
+// ULTRASONIC UPDATE
+// ============================================================================
+//
+// Consecutive readings are used to calculate closing speed.
+//
+// Positive closing speed = opponent getting closer.
+// Negative closing speed = opponent moving away.
+//
+
+void updateUltrasonic() {
+
+  unsigned long now =
+    millis();
+
+
+  if (
+    now - lastUltrasonicRead <
+    ULTRASONIC_INTERVAL
+  ) {
+
+    return;
+
+  }
+
+
+  lastUltrasonicRead =
+    now;
+
+
+  float newDistance =
+    readUltrasonic();
+
+
+  if (newDistance < 0) {
+
+    ultrasonicValid =
+      false;
+
+    return;
+
+  }
+
+
+  ultrasonicValid =
+    true;
+
+
+  if (previousDistance > 0) {
+
+    unsigned long dt =
+      now - previousDistanceTime;
+
+
+    if (dt > 0) {
+
+      float instantClosingSpeed =
+        (
+          previousDistance -
+          newDistance
+        )
+        /
+        (
+          dt / 1000.0
+        );
+
+
+      closingSpeed =
+        (
+          closingSpeed *
+          0.65
+        )
+        +
+        (
+          instantClosingSpeed *
+          0.35
+        );
+
+
+      float instantAcceleration =
+        (
+          closingSpeed -
+          previousClosingSpeed
+        )
+        /
+        (
+          dt / 1000.0
+        );
+
+
+      closingAcceleration =
+        (
+          closingAcceleration *
+          0.70
+        )
+        +
+        (
+          instantAcceleration *
+          0.30
+        );
+
+
+      previousClosingSpeed =
+        closingSpeed;
+
+    }
+
+  }
+
+
+  previousDistance =
+    newDistance;
+
+  previousDistanceTime =
+    now;
+
+  ultrasonicDistance =
+    newDistance;
 
 }
 
@@ -487,12 +765,31 @@ bool BR() {
 
 bool opponentDetected() {
 
-  return FL() ||
-         FR() ||
-         L()  ||
-         R()  ||
-         BL() ||
-         BR();
+  if (
+    FL() ||
+    FR() ||
+    L() ||
+    R() ||
+    BL()
+  ) {
+
+    return true;
+
+  }
+
+
+  if (
+    ultrasonicValid &&
+    ultrasonicDistance >= MIN_TARGET_DISTANCE &&
+    ultrasonicDistance <= MAX_TARGET_DISTANCE
+  ) {
+
+    return true;
+
+  }
+
+
+  return false;
 
 }
 
@@ -510,12 +807,27 @@ OpponentDirection getOpponentDirection() {
   bool r = R();
 
   bool bl = BL();
-  bool br = BR();
 
 
-  // Strongest front indication
+  // Both front IR sensors
 
-  if (fl && fr) {
+  if (
+    fl &&
+    fr
+  ) {
+
+    return OPP_FRONT;
+
+  }
+
+
+  // Front center ultrasonic
+
+  if (
+    ultrasonicValid &&
+    ultrasonicDistance >= MIN_TARGET_DISTANCE &&
+    ultrasonicDistance <= MAX_TARGET_DISTANCE
+  ) {
 
     return OPP_FRONT;
 
@@ -550,7 +862,7 @@ OpponentDirection getOpponentDirection() {
   }
 
 
-  if (bl || br) {
+  if (bl) {
 
     return OPP_BACK;
 
@@ -563,184 +875,185 @@ OpponentDirection getOpponentDirection() {
 
 
 // ============================================================================
-// SINGLE PIN ULTRASONIC
+// IR MOTION CLASSIFICATION
 // ============================================================================
 //
-// This is for sensors with one shared signal pin.
+// This is the important timestamp fix.
 //
-// The sensor is briefly driven HIGH to trigger.
-// Then the same pin becomes an input.
-// The returning pulse is measured with pulseIn().
+// lastPatternChangeTime changes ONLY when the IR pattern changes.
+//
+// It is not updated every tracking cycle.
 //
 
-float readUltrasonic() {
+OpponentMotion classifyIRMotion(
+  unsigned long now
+) {
 
-  pinMode(ULTRASONIC_PIN, OUTPUT);
+  bool fl = FL();
+  bool fr = FR();
 
-  digitalWrite(ULTRASONIC_PIN, LOW);
+  bool l = L();
+  bool r = R();
 
-  delayMicroseconds(3);
-
-  digitalWrite(ULTRASONIC_PIN, HIGH);
-
-  delayMicroseconds(10);
-
-  digitalWrite(ULTRASONIC_PIN, LOW);
+  bool bl = BL();
 
 
-  pinMode(ULTRASONIC_PIN, INPUT);
+  bool patternChanged =
+    (fl != previousFL) ||
+    (fr != previousFR) ||
+    (l  != previousL) ||
+    (r  != previousR) ||
+    (bl != previousBL);
 
 
-  unsigned long duration = pulseIn(
-    ULTRASONIC_PIN,
-    HIGH,
-    ULTRASONIC_TIMEOUT
-  );
+  if (patternChanged) {
 
-
-  if (duration == 0) {
-
-    return -1.0;
+    lastPatternChangeTime =
+      now;
 
   }
 
 
-  float distance =
-    (duration * SOUND_SPEED_CM_PER_US) / 2.0;
+  bool currentFront =
+    fl ||
+    fr;
 
 
-  if (distance < MIN_TARGET_DISTANCE ||
-      distance > MAX_TARGET_DISTANCE) {
-
-    return -1.0;
-
-  }
+  bool previousFront =
+    previousFL ||
+    previousFR;
 
 
-  return distance;
-
-}
-
-
-// ============================================================================
-// ULTRASONIC UPDATE
-// ============================================================================
-
-void updateUltrasonic() {
-
-  unsigned long now = millis();
+  bool currentSide =
+    l ||
+    r;
 
 
-  if (now - lastUltrasonicRead <
-      ULTRASONIC_INTERVAL) {
-
-    return;
-
-  }
+  bool previousSide =
+    previousL ||
+    previousR;
 
 
-  lastUltrasonicRead = now;
+  bool currentBack =
+    bl;
 
 
-  float newDistance = readUltrasonic();
+  bool previousBack =
+    previousBL;
 
 
-  if (newDistance < 0) {
+  // ----------------------------------------------------------
+  // REAR TO FRONT
+  // ----------------------------------------------------------
 
-    ultrasonicValid = false;
+  if (
+    previousBack &&
+    currentFront
+  ) {
 
-    return;
+    return MOTION_APPROACHING_FAST;
 
   }
 
 
-  ultrasonicValid = true;
+  // ----------------------------------------------------------
+  // SIDE TO FRONT
+  // ----------------------------------------------------------
+
+  if (
+    previousSide &&
+    currentFront
+  ) {
+
+    return MOTION_APPROACHING_SLOW;
+
+  }
 
 
-  if (previousDistance > 0) {
+  // ----------------------------------------------------------
+  // SIDE CROSSING
+  // ----------------------------------------------------------
 
-    unsigned long dt =
-      now - previousDistanceTime;
+  if (
+    (previousFL && r) ||
+    (previousFR && l) ||
+    (previousL && fr) ||
+    (previousR && fl)
+  ) {
 
+    return MOTION_CROSSING;
 
-    if (dt > 0) {
-
-      float instantClosingSpeed =
-        (previousDistance - newDistance)
-        /
-        (dt / 1000.0);
-
-
-      // Low-pass filter.
-      // This prevents one noisy reading from changing tactics.
-
-      closingSpeed =
-        (closingSpeed * 0.65)
-        +
-        (instantClosingSpeed * 0.35);
+  }
 
 
-      float instantAcceleration =
-        (closingSpeed - previousClosingSpeed)
-        /
-        (dt / 1000.0);
+  // ----------------------------------------------------------
+  // FRONT PATTERN CHANGED
+  // ----------------------------------------------------------
+
+  if (
+    currentFront &&
+    !previousFront
+  ) {
+
+    return MOTION_APPROACHING_SLOW;
+
+  }
 
 
-      closingAcceleration =
-        (closingAcceleration * 0.7)
-        +
-        (instantAcceleration * 0.3);
+  // ----------------------------------------------------------
+  // PATTERN HAS BEEN STABLE
+  // ----------------------------------------------------------
+
+  if (
+    opponentDetected()
+  ) {
+
+    unsigned long stableTime =
+      now - lastPatternChangeTime;
 
 
-      previousClosingSpeed = closingSpeed;
+    if (
+      stableTime >=
+      IR_SLOW_THRESHOLD
+    ) {
+
+      return MOTION_STATIONARY;
 
     }
 
+
+    return MOTION_APPROACHING_SLOW;
+
   }
 
 
-  previousDistance = newDistance;
-
-  previousDistanceTime = now;
-
-  ultrasonicDistance = newDistance;
+  return MOTION_UNKNOWN;
 
 }
 
 
 // ============================================================================
-// OPPONENT MOTION CLASSIFICATION
+// OPPONENT MOTION UPDATE
 // ============================================================================
-//
-// Thresholds are in cm/s.
-//
-// Positive = approaching
-// Negative = moving away
-//
-// These are initial competition values.
-// They should be tuned after testing your actual sensor.
-//
 
 void classifyOpponentMotion() {
 
-  if (!opponentDetected()) {
-
-    opponentMotion = MOTION_UNKNOWN;
-
-    return;
-
-  }
+  unsigned long now =
+    millis();
 
 
   // ----------------------------------------------------------
   // ULTRASONIC HAS PRIORITY WHEN VALID
   // ----------------------------------------------------------
 
-  if (ultrasonicValid) {
+  if (
+    ultrasonicValid
+  ) {
 
-    // Very fast closing opponent
-
-    if (closingSpeed >= 80.0) {
+    if (
+      closingSpeed >=
+      FAST_CLOSING_SPEED
+    ) {
 
       opponentMotion =
         MOTION_APPROACHING_FAST;
@@ -750,9 +1063,10 @@ void classifyOpponentMotion() {
     }
 
 
-    // Moderate or slow closing
-
-    if (closingSpeed >= 15.0) {
+    if (
+      closingSpeed >=
+      SLOW_CLOSING_SPEED
+    ) {
 
       opponentMotion =
         MOTION_APPROACHING_SLOW;
@@ -762,9 +1076,10 @@ void classifyOpponentMotion() {
     }
 
 
-    // Moving away
-
-    if (closingSpeed <= -20.0) {
+    if (
+      closingSpeed <=
+      MOVING_AWAY_SPEED
+    ) {
 
       opponentMotion =
         MOTION_MOVING_AWAY;
@@ -774,190 +1089,152 @@ void classifyOpponentMotion() {
     }
 
 
-    // Nearly stationary
+    // If the ultrasonic distance is almost constant,
+    // fall back to IR information.
 
-    if (abs(closingSpeed) < 15.0) {
+  }
 
-      opponentMotion =
-        MOTION_STATIONARY;
 
-      return;
+  // ----------------------------------------------------------
+  // IR FALLBACK
+  // ----------------------------------------------------------
+
+  opponentMotion =
+    classifyIRMotion(
+      now
+    );
+
+}
+
+
+// ============================================================================
+// OPPONENT TRACKING UPDATE
+// ============================================================================
+
+void updateOpponentTracking() {
+
+  unsigned long now =
+    millis();
+
+
+  // ----------------------------------------------------------
+  // SAVE CURRENT SENSOR STATE
+  // ----------------------------------------------------------
+
+  bool currentFL = FL();
+  bool currentFR = FR();
+
+  bool currentL = L();
+  bool currentR = R();
+
+  bool currentBL = BL();
+
+
+  // ----------------------------------------------------------
+  // DETECT PATTERN CHANGE
+  // ----------------------------------------------------------
+
+  bool patternChanged =
+    (currentFL != previousFL) ||
+    (currentFR != previousFR) ||
+    (currentL != previousL) ||
+    (currentR != previousR) ||
+    (currentBL != previousBL);
+
+
+  if (patternChanged) {
+
+    lastPatternChangeTime =
+      now;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // DETECT OPPONENT
+  // ----------------------------------------------------------
+
+  bool detected =
+    opponentDetected();
+
+
+  if (detected) {
+
+    lastOpponentSeen =
+      now;
+
+
+    OpponentDirection currentDirection =
+      getOpponentDirection();
+
+
+    if (
+      currentDirection !=
+      OPP_NONE
+    ) {
+
+      opponentDirection =
+        currentDirection;
+
+
+      lastOpponentDirection =
+        currentDirection;
 
     }
 
   }
 
+  else {
+
+    // Do NOT erase the last direction immediately.
+    // It is used by the last-seen search behavior.
+
+    opponentDirection =
+      OPP_NONE;
+
+  }
+
 
   // ----------------------------------------------------------
-  // FALLBACK TO IR SENSOR MOVEMENT
+  // MOTION
   // ----------------------------------------------------------
 
-  bool fl = FL();
-  bool fr = FR();
+  if (detected) {
 
-  bool l = L();
-  bool r = R();
+    classifyOpponentMotion();
 
-  bool bl = BL();
-  bool br = BR();
+  }
 
-
-  bool previousSide =
-    previousFL ||
-    previousFR ||
-    previousL ||
-    previousR;
-
-
-  bool currentFront =
-    fl ||
-    fr;
-
-
-  bool previousRear =
-    previousBL ||
-    previousBR;
-
-
-  if (previousRear && currentFront) {
+  else {
 
     opponentMotion =
-      MOTION_APPROACHING_FAST;
-
-    return;
+      MOTION_UNKNOWN;
 
   }
 
 
-  if (previousSide && currentFront) {
+  // ----------------------------------------------------------
+  // SAVE CURRENT STATES FOR NEXT CYCLE
+  // ----------------------------------------------------------
 
-    opponentMotion =
-      MOTION_APPROACHING_SLOW;
+  previousFL =
+    currentFL;
 
-    return;
+  previousFR =
+    currentFR;
 
-  }
+  previousL =
+    currentL;
 
+  previousR =
+    currentR;
 
-  if ((previousFL && r) ||
-      (previousFR && l) ||
-      (previousL && fr) ||
-      (previousR && fl)) {
-
-    opponentMotion =
-      MOTION_CROSSING;
-
-    return;
-
-  }
+  previousBL =
+    currentBL;
 
 
-  opponentMotion =
-    MOTION_STATIONARY;
-
-}
-
-
-// ============================================================================
-// UPDATE OPPONENT TRACKING
-// ============================================================================
-
-void updateOpponentTracking() {
-
-  unsigned long now = millis();
-
-
-  bool fl = FL();
-  bool fr = FR();
-
-  bool l = L();
-  bool r = R();
-
-  bool bl = BL();
-  bool br = BR();
-
-
-  if (opponentDetected()) {
-
-    lastOpponentSeen = now;
-
-  }
-
-
-  bool patternChanged =
-    (fl != previousFL) ||
-    (fr != previousFR) ||
-    (l  != previousL)  ||
-    (r  != previousR)  ||
-    (bl != previousBL) ||
-    (br != previousBR);
-
-
-  if (patternChanged) {
-
-    lastPatternChange = now;
-
-  }
-
-
-  previousFL = fl;
-  previousFR = fr;
-
-  previousL = l;
-  previousR = r;
-
-  previousBL = bl;
-  previousBR = br;
-
-
-  opponentDirection =
-    getOpponentDirection();
-
-
-  classifyOpponentMotion();
-
-
-  lastTrackingUpdate = now;
-
-}
-
-
-// ============================================================================
-// LINE SENSORS
-// ============================================================================
-
-bool frontLeftLine() {
-
-  return digitalRead(
-    LINE_FRONT_LEFT_PIN
-  ) == LINE_DETECTED;
-
-}
-
-
-bool frontRightLine() {
-
-  return digitalRead(
-    LINE_FRONT_RIGHT_PIN
-  ) == LINE_DETECTED;
-
-}
-
-
-bool backLeftLine() {
-
-  return digitalRead(
-    LINE_BACK_LEFT_PIN
-  ) == LINE_DETECTED;
-
-}
-
-
-bool backRightLine() {
-
-  return digitalRead(
-    LINE_BACK_RIGHT_PIN
-  ) == LINE_DETECTED;
+  lastTrackingUpdate =
+    now;
 
 }
 
@@ -966,49 +1243,231 @@ bool backRightLine() {
 // START ESCAPE
 // ============================================================================
 
-void beginEscape(EscapeState state,
-                 unsigned long duration) {
+void startFrontEscape(
+  unsigned long duration,
+  bool turnLeft
+) {
 
-  escapeState = state;
+  escapeState =
+    ESCAPE_BACK_FROM_FRONT;
 
-  escapeStarted = millis();
+  escapeStarted =
+    millis();
 
-  escapeDuration = duration;
+  escapeDuration =
+    duration;
+
+  escapeTurnLeft =
+    turnLeft;
+
+}
+
+
+void startRearEscape(
+  unsigned long duration,
+  bool turnLeft
+) {
+
+  escapeState =
+    ESCAPE_FORWARD_FROM_BACK;
+
+  escapeStarted =
+    millis();
+
+  escapeDuration =
+    duration;
+
+  escapeTurnLeft =
+    turnLeft;
 
 }
 
 
 // ============================================================================
-// BOUNDARY ESCAPE CONTROLLER
+// BOUNDARY ESCAPE
 // ============================================================================
 //
-// Completely non-blocking.
+// Entirely non-blocking.
 //
-// The robot continues checking its sensors during escape.
-// ============================================================================
+// No delay() is used here.
+//
+// FRONT LEFT:
+//     Back up -> turn RIGHT
+//
+// FRONT RIGHT:
+//     Back up -> turn LEFT
+//
+// BOTH FRONT:
+//     Back up -> turn LEFT
+//
+// REAR CENTER:
+//     Move forward -> turn RIGHT
+//
 
 bool handleBoundary() {
 
-  bool fl = frontLeftLine();
-  bool fr = frontRightLine();
+  bool fl =
+    frontLeftLine();
 
-  bool bl = backLeftLine();
-  bool br = backRightLine();
+  bool fr =
+    frontRightLine();
+
+  bool back =
+    backLine();
 
 
-  // ----------------------------------------------------------
+  // ========================================================================
   // ALREADY ESCAPING
-  // ----------------------------------------------------------
+  // ========================================================================
 
-  if (escapeState != ESCAPE_NONE) {
+  if (
+    escapeState !=
+    ESCAPE_NONE
+  ) {
 
     unsigned long elapsed =
       millis() - escapeStarted;
 
 
-    if (elapsed >= escapeDuration) {
+    // ----------------------------------------------------------------------
+    // WHILE BACKING FROM FRONT, WATCH REAR
+    // ----------------------------------------------------------------------
 
-      escapeState = ESCAPE_NONE;
+    if (
+      escapeState ==
+      ESCAPE_BACK_FROM_FRONT
+    ) {
+
+      if (back) {
+
+        startRearEscape(
+          250,
+          false
+        );
+
+        return true;
+
+      }
+
+    }
+
+
+    // ----------------------------------------------------------------------
+    // WHILE MOVING FROM REAR, WATCH FRONT
+    // ----------------------------------------------------------------------
+
+    if (
+      escapeState ==
+      ESCAPE_FORWARD_FROM_BACK
+    ) {
+
+      if (
+        fl ||
+        fr
+      ) {
+
+        if (
+          fl &&
+          !fr
+        ) {
+
+          startFrontEscape(
+            250,
+            false
+          );
+
+        }
+
+        else if (
+          fr &&
+          !fl
+        ) {
+
+          startFrontEscape(
+            250,
+            true
+          );
+
+        }
+
+        else {
+
+          startFrontEscape(
+            300,
+            true
+          );
+
+        }
+
+
+        return true;
+
+      }
+
+    }
+
+
+    // ----------------------------------------------------------------------
+    // CURRENT PHASE FINISHED
+    // ----------------------------------------------------------------------
+
+    if (
+      elapsed >=
+      escapeDuration
+    ) {
+
+      // ----------------------------------------------------
+      // BACKUP FINISHED
+      // ----------------------------------------------------
+
+      if (
+        escapeState ==
+        ESCAPE_BACK_FROM_FRONT
+      ) {
+
+        escapeState =
+          ESCAPE_TURN_FROM_FRONT;
+
+        escapeStarted =
+          millis();
+
+        escapeDuration =
+          300;
+
+        return true;
+
+      }
+
+
+      // ----------------------------------------------------
+      // FORWARD ESCAPE FINISHED
+      // ----------------------------------------------------
+
+      if (
+        escapeState ==
+        ESCAPE_FORWARD_FROM_BACK
+      ) {
+
+        escapeState =
+          ESCAPE_TURN_FROM_BACK;
+
+        escapeStarted =
+          millis();
+
+        escapeDuration =
+          300;
+
+        return true;
+
+      }
+
+
+      // ----------------------------------------------------
+      // TURN FINISHED
+      // ----------------------------------------------------
+
+      escapeState =
+        ESCAPE_NONE;
 
       stopMotors();
 
@@ -1017,60 +1476,74 @@ bool handleBoundary() {
     }
 
 
-    switch (escapeState) {
+    // ----------------------------------------------------------------------
+    // EXECUTE CURRENT PHASE
+    // ----------------------------------------------------------------------
+
+    switch (
+      escapeState
+    ) {
 
       case ESCAPE_BACK_FROM_FRONT:
 
-        backward(ESCAPE_SPEED);
-
-        break;
-
-
-      case ESCAPE_TURN_FROM_FRONT_LEFT:
-
-        rotateRight(ESCAPE_SPEED);
-
-        break;
-
-
-      case ESCAPE_TURN_FROM_FRONT_RIGHT:
-
-        rotateLeft(ESCAPE_SPEED);
+        backward(
+          ESCAPE_SPEED
+        );
 
         break;
 
 
       case ESCAPE_TURN_FROM_FRONT:
 
-        rotateRight(ESCAPE_SPEED);
+        if (
+          escapeTurnLeft
+        ) {
+
+          rotateLeft(
+            ESCAPE_SPEED
+          );
+
+        }
+
+        else {
+
+          rotateRight(
+            ESCAPE_SPEED
+          );
+
+        }
 
         break;
 
 
       case ESCAPE_FORWARD_FROM_BACK:
 
-        forward(ESCAPE_SPEED);
-
-        break;
-
-
-      case ESCAPE_TURN_FROM_BACK_LEFT:
-
-        rotateRight(ESCAPE_SPEED);
-
-        break;
-
-
-      case ESCAPE_TURN_FROM_BACK_RIGHT:
-
-        rotateLeft(ESCAPE_SPEED);
+        forward(
+          ESCAPE_SPEED
+        );
 
         break;
 
 
       case ESCAPE_TURN_FROM_BACK:
 
-        rotateRight(ESCAPE_SPEED);
+        if (
+          escapeTurnLeft
+        ) {
+
+          rotateLeft(
+            ESCAPE_SPEED
+          );
+
+        }
+
+        else {
+
+          rotateRight(
+            ESCAPE_SPEED
+          );
+
+        }
 
         break;
 
@@ -1089,104 +1562,76 @@ bool handleBoundary() {
   }
 
 
-  // ----------------------------------------------------------
-  // FRONT BOUNDARY
-  // ----------------------------------------------------------
+  // ========================================================================
+  // NEW FRONT ESCAPE
+  // ========================================================================
 
-  if (fl && fr) {
+  // BOTH FRONT SENSORS
 
-    Serial.println("BOUNDARY: FRONT BOTH");
+  if (
+    fl &&
+    fr
+  ) {
 
-
-    beginEscape(
-      ESCAPE_BACK_FROM_FRONT,
-      500
+    startFrontEscape(
+      400,
+      true
     );
-
 
     return true;
 
   }
 
+
+  // FRONT LEFT
 
   if (fl) {
 
-    Serial.println("BOUNDARY: FRONT LEFT");
+    // Left side of robot reached edge.
+    // Turn right.
 
-
-    beginEscape(
-      ESCAPE_BACK_FROM_FRONT,
-      450
+    startFrontEscape(
+      300,
+      false
     );
-
 
     return true;
 
   }
 
+
+  // FRONT RIGHT
 
   if (fr) {
 
-    Serial.println("BOUNDARY: FRONT RIGHT");
+    // Right side reached edge.
+    // Turn left.
 
-
-    beginEscape(
-      ESCAPE_BACK_FROM_FRONT,
-      450
+    startFrontEscape(
+      300,
+      true
     );
-
 
     return true;
 
   }
 
 
-  // ----------------------------------------------------------
-  // REAR BOUNDARY
-  // ----------------------------------------------------------
+  // ========================================================================
+  // NEW REAR ESCAPE
+  // ========================================================================
 
-  if (bl && br) {
+  if (back) {
 
-    Serial.println("BOUNDARY: BACK BOTH");
+    // Only one rear sensor exists, so no left/right
+    // information is available.
+    //
+    // Use right turn as the default.
 
-
-    beginEscape(
-      ESCAPE_FORWARD_FROM_BACK,
-      500
+    startRearEscape(
+      300,
+      false
     );
-
-
-    return true;
-
-  }
-
-
-  if (bl) {
-
-    Serial.println("BOUNDARY: BACK LEFT");
-
-
-    beginEscape(
-      ESCAPE_FORWARD_FROM_BACK,
-      450
-    );
-
-
-    return true;
-
-  }
-
-
-  if (br) {
-
-    Serial.println("BOUNDARY: BACK RIGHT");
-
-
-    beginEscape(
-      ESCAPE_FORWARD_FROM_BACK,
-      450
-    );
-
 
     return true;
 
@@ -1199,19 +1644,207 @@ bool handleBoundary() {
 
 
 // ============================================================================
-// FINISH FRONT ESCAPE WITH TURN
+// OPENING MOVE
 // ============================================================================
-//
-// This function runs after the robot has moved away from the boundary.
-//
 
-void continueEscapeStrategy() {
+void openingMove() {
 
-  if (escapeState != ESCAPE_NONE) {
+  unsigned long elapsed =
+    millis() - openingMoveStarted;
+
+
+  if (
+    elapsed <
+    OPENING_MOVE_DURATION
+  ) {
+
+    forward(
+      ATTACK_SPEED
+    );
 
     return;
 
   }
+
+
+  openingMoveActive =
+    false;
+
+}
+
+
+// ============================================================================
+// LAST-SEEN PURSUIT
+// ============================================================================
+//
+// When the opponent disappears, do not immediately begin a random sweep.
+//
+// First turn toward the last known direction.
+//
+
+bool handleLastSeen() {
+
+  if (
+    lastOpponentSeen == 0
+  ) {
+
+    return false;
+
+  }
+
+
+  unsigned long now =
+    millis();
+
+
+  unsigned long timeSinceSeen =
+    now - lastOpponentSeen;
+
+
+  if (
+    timeSinceSeen >
+    LAST_SEEN_MEMORY
+  ) {
+
+    lastSeenTurnActive =
+      false;
+
+    return false;
+
+  }
+
+
+  // --------------------------------------------------------------------------
+  // FRONT
+  // --------------------------------------------------------------------------
+
+  if (
+    lastOpponentDirection ==
+    OPP_FRONT
+  ) {
+
+    forward(
+      TRACK_SPEED
+    );
+
+    return true;
+
+  }
+
+
+  // --------------------------------------------------------------------------
+  // LEFT
+  // --------------------------------------------------------------------------
+
+  if (
+    lastOpponentDirection ==
+    OPP_LEFT
+  ) {
+
+    if (!lastSeenTurnActive) {
+
+      lastSeenTurnActive =
+        true;
+
+      lastSeenTurnStarted =
+        now;
+
+    }
+
+
+    if (
+      now - lastSeenTurnStarted <
+      LAST_SEEN_TURN_TIME
+    ) {
+
+      rotateLeft(
+        TURN_SPEED
+      );
+
+      return true;
+
+    }
+
+  }
+
+
+  // --------------------------------------------------------------------------
+  // RIGHT
+  // --------------------------------------------------------------------------
+
+  if (
+    lastOpponentDirection ==
+    OPP_RIGHT
+  ) {
+
+    if (!lastSeenTurnActive) {
+
+      lastSeenTurnActive =
+        true;
+
+      lastSeenTurnStarted =
+        now;
+
+    }
+
+
+    if (
+      now - lastSeenTurnStarted <
+      LAST_SEEN_TURN_TIME
+    ) {
+
+      rotateRight(
+        TURN_SPEED
+      );
+
+      return true;
+
+    }
+
+  }
+
+
+  // --------------------------------------------------------------------------
+  // BACK
+  // --------------------------------------------------------------------------
+
+  if (
+    lastOpponentDirection ==
+    OPP_BACK
+  ) {
+
+    if (!lastSeenTurnActive) {
+
+      lastSeenTurnActive =
+        true;
+
+      lastSeenTurnStarted =
+        now;
+
+    }
+
+
+    if (
+      now - lastSeenTurnStarted <
+      LAST_SEEN_TURN_TIME
+    ) {
+
+      rotateLeft(
+        TURN_SPEED
+      );
+
+      return true;
+
+    }
+
+  }
+
+
+  lastSeenTurnActive =
+    false;
+
+
+  return false;
 
 }
 
@@ -1222,37 +1855,54 @@ void continueEscapeStrategy() {
 
 void searchOpponent() {
 
-  static unsigned long searchTimer = 0;
-
-  static bool searchDirection = false;
-
-
-  unsigned long now = millis();
+  unsigned long now =
+    millis();
 
 
-  if (now - searchTimer > 650) {
+  // --------------------------------------------------------------------------
+  // FIRST USE LAST-SEEN DIRECTION
+  // --------------------------------------------------------------------------
 
-    searchDirection =
-      !searchDirection;
+  if (
+    handleLastSeen()
+  ) {
 
-    searchTimer = now;
+    return;
 
   }
 
 
-  if (searchDirection) {
+  // --------------------------------------------------------------------------
+  // NORMAL SEARCH SWEEP
+  // --------------------------------------------------------------------------
 
-    drive(
-      SEARCH_SPEED,
-      -SEARCH_SPEED
+  if (
+    now - searchDirectionChanged >
+    650
+  ) {
+
+    searchDirectionLeft =
+      !searchDirectionLeft;
+
+    searchDirectionChanged =
+      now;
+
+  }
+
+
+  if (
+    searchDirectionLeft
+  ) {
+
+    rotateLeft(
+      SEARCH_SPEED
     );
 
   }
 
   else {
 
-    drive(
-      -SEARCH_SPEED,
+    rotateRight(
       SEARCH_SPEED
     );
 
@@ -1262,51 +1912,62 @@ void searchOpponent() {
 
 
 // ============================================================================
-// FRONT ATTACK
+// ATTACK
 // ============================================================================
 
 void attackOpponent() {
 
-  Serial.println("TACTIC: ATTACK");
+  switch (
+    opponentDirection
+  ) {
+
+    case OPP_LEFT:
+
+      drive(
+        60,
+        ATTACK_SPEED
+      );
+
+      break;
 
 
-  // If opponent is directly in front,
-  // attack at maximum power.
+    case OPP_RIGHT:
 
-  if (opponentDirection == OPP_FRONT) {
+      drive(
+        ATTACK_SPEED,
+        60
+      );
 
-    forward(ATTACK_SPEED);
+      break;
 
-    return;
+
+    case OPP_FRONT:
+
+      forward(
+        ATTACK_SPEED
+      );
+
+      break;
+
+
+    case OPP_BACK:
+
+      rotateLeft(
+        TURN_SPEED
+      );
+
+      break;
+
+
+    default:
+
+      forward(
+        ATTACK_SPEED
+      );
+
+      break;
 
   }
-
-
-  if (opponentDirection == OPP_LEFT) {
-
-    drive(
-      60,
-      ATTACK_SPEED
-    );
-
-    return;
-
-  }
-
-
-  if (opponentDirection == OPP_RIGHT) {
-
-    drive(
-      ATTACK_SPEED,
-      60
-    );
-
-    return;
-
-  }
-
-
-  forward(ATTACK_SPEED);
 
 }
 
@@ -1314,38 +1975,49 @@ void attackOpponent() {
 // ============================================================================
 // DEFENSIVE ATTACK
 // ============================================================================
-//
-// If the opponent is approaching slowly,
-// position the robot so that it meets the opponent instead of
-// allowing the opponent to dictate the direction of the collision.
-//
 
 void defensiveAttack() {
 
-  Serial.println("TACTIC: DEFENSIVE ATTACK");
+  switch (
+    opponentDirection
+  ) {
+
+    case OPP_LEFT:
+
+      drive(
+        DEFENSE_SPEED / 2,
+        DEFENSE_SPEED
+      );
+
+      break;
 
 
-  if (opponentDirection == OPP_LEFT) {
+    case OPP_RIGHT:
 
-    drive(
-      DEFENSE_SPEED / 2,
-      DEFENSE_SPEED
-    );
+      drive(
+        DEFENSE_SPEED,
+        DEFENSE_SPEED / 2
+      );
 
-  }
+      break;
 
-  else if (opponentDirection == OPP_RIGHT) {
 
-    drive(
-      DEFENSE_SPEED,
-      DEFENSE_SPEED / 2
-    );
+    case OPP_FRONT:
 
-  }
+      forward(
+        DEFENSE_SPEED
+      );
 
-  else {
+      break;
 
-    forward(DEFENSE_SPEED);
+
+    default:
+
+      forward(
+        DEFENSE_SPEED
+      );
+
+      break;
 
   }
 
@@ -1353,51 +2025,51 @@ void defensiveAttack() {
 
 
 // ============================================================================
-// FAST APPROACH TRAP
-// ============================================================================
-//
-// If the opponent is coming quickly:
-//
-// Do not simply reverse.
-//
-// Rotate toward the detected side so the robot moves into the
-// opponent's path.
-//
+// FAST APPROACH
 // ============================================================================
 
 void trapFastOpponent() {
 
-  Serial.println("TACTIC: FAST APPROACH INTERCEPT");
+  switch (
+    opponentDirection
+  ) {
+
+    case OPP_LEFT:
+
+      drive(
+        -INTERCEPT_SPEED,
+        INTERCEPT_SPEED
+      );
+
+      break;
 
 
-  if (opponentDirection == OPP_LEFT) {
+    case OPP_RIGHT:
 
-    // Move toward the opponent's path.
+      drive(
+        INTERCEPT_SPEED,
+        -INTERCEPT_SPEED
+      );
 
-    drive(
-      -INTERCEPT_SPEED,
-      INTERCEPT_SPEED
-    );
-
-  }
+      break;
 
 
-  else if (opponentDirection == OPP_RIGHT) {
+    case OPP_FRONT:
 
-    drive(
-      INTERCEPT_SPEED,
-      -INTERCEPT_SPEED
-    );
+      forward(
+        INTERCEPT_SPEED
+      );
 
-  }
+      break;
 
 
-  else {
+    default:
 
-    // Direct high-speed approach.
-    // Meet the opponent instead of allowing a passive collision.
+      forward(
+        INTERCEPT_SPEED
+      );
 
-    forward(INTERCEPT_SPEED);
+      break;
 
   }
 
@@ -1410,97 +2082,141 @@ void trapFastOpponent() {
 
 void pursueOpponent() {
 
-  Serial.println("TACTIC: PURSUIT");
+  switch (
+    opponentDirection
+  ) {
+
+    case OPP_LEFT:
+
+      drive(
+        TRACK_SPEED / 2,
+        ATTACK_SPEED
+      );
+
+      break;
 
 
-  if (opponentDirection == OPP_LEFT) {
+    case OPP_RIGHT:
 
-    drive(
-      TRACK_SPEED / 2,
+      drive(
+        ATTACK_SPEED,
+        TRACK_SPEED / 2
+      );
+
+      break;
+
+
+    case OPP_FRONT:
+
+      forward(
+        ATTACK_SPEED
+      );
+
+      break;
+
+
+    default:
+
+      forward(
+        TRACK_SPEED
+      );
+
+      break;
+
+  }
+
+}
+
+
+// ============================================================================
+// CROSSING INTERCEPT
+// ============================================================================
+
+void interceptCrossingOpponent() {
+
+  if (
+    opponentDirection ==
+    OPP_LEFT
+  ) {
+
+    rotateLeft(
+      TURN_SPEED
+    );
+
+  }
+
+  else if (
+    opponentDirection ==
+    OPP_RIGHT
+  ) {
+
+    rotateRight(
+      TURN_SPEED
+    );
+
+  }
+
+  else {
+
+    forward(
       ATTACK_SPEED
     );
 
   }
 
-  else if (opponentDirection == OPP_RIGHT) {
-
-    drive(
-      ATTACK_SPEED,
-      TRACK_SPEED / 2
-    );
-
-  }
-
-  else {
-
-    forward(ATTACK_SPEED);
-
-  }
-
 }
 
 
 // ============================================================================
-// CROSSING OPPONENT
-// ============================================================================
-
-void interceptCrossingOpponent() {
-
-  Serial.println("TACTIC: CUT OFF");
-
-
-  if (opponentDirection == OPP_LEFT) {
-
-    rotateLeft(TURN_SPEED);
-
-  }
-
-  else if (opponentDirection == OPP_RIGHT) {
-
-    rotateRight(TURN_SPEED);
-
-  }
-
-  else {
-
-    forward(ATTACK_SPEED);
-
-  }
-
-}
-
-
-// ============================================================================
-// MAIN PROACTIVE CONTROLLER
+// MAIN CONTROLLER
 // ============================================================================
 
 void proactiveController() {
 
-  // ----------------------------------------------------------
-  // UPDATE EVERYTHING
-  // ----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // SENSOR UPDATES
+  // --------------------------------------------------------------------------
 
   updateUltrasonic();
 
   updateOpponentTracking();
 
 
-  // ----------------------------------------------------------
-  // BOUNDARY ALWAYS WINS
-  // ----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // BOUNDARY HAS ABSOLUTE PRIORITY
+  // --------------------------------------------------------------------------
 
-  if (handleBoundary()) {
+  if (
+    handleBoundary()
+  ) {
 
     return;
 
   }
 
 
-  // ----------------------------------------------------------
-  // NO OPPONENT
-  // ----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // OPENING MOVE
+  // --------------------------------------------------------------------------
 
-  if (!opponentDetected()) {
+  if (
+    openingMoveActive
+  ) {
+
+    openingMove();
+
+    return;
+
+  }
+
+
+  // --------------------------------------------------------------------------
+  // NO OPPONENT
+  // --------------------------------------------------------------------------
+
+  if (
+    !opponentDetected()
+  ) {
 
     searchOpponent();
 
@@ -1509,95 +2225,54 @@ void proactiveController() {
   }
 
 
-  // ----------------------------------------------------------
-  // FAST APPROACH
-  // ----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // OPPONENT DETECTED
+  // --------------------------------------------------------------------------
 
-  if (opponentMotion ==
-      MOTION_APPROACHING_FAST) {
+  switch (
+    opponentMotion
+  ) {
 
-    trapFastOpponent();
+    case MOTION_APPROACHING_FAST:
 
-    return;
+      trapFastOpponent();
 
-  }
-
-
-  // ----------------------------------------------------------
-  // SLOW APPROACH
-  // ----------------------------------------------------------
-
-  if (opponentMotion ==
-      MOTION_APPROACHING_SLOW) {
-
-    defensiveAttack();
-
-    return;
-
-  }
+      break;
 
 
-  // ----------------------------------------------------------
-  // CROSSING
-  // ----------------------------------------------------------
+    case MOTION_APPROACHING_SLOW:
 
-  if (opponentMotion ==
-      MOTION_CROSSING) {
+      defensiveAttack();
 
-    interceptCrossingOpponent();
-
-    return;
-
-  }
+      break;
 
 
-  // ----------------------------------------------------------
-  // MOVING AWAY
-  // ----------------------------------------------------------
+    case MOTION_CROSSING:
 
-  if (opponentMotion ==
-      MOTION_MOVING_AWAY) {
+      interceptCrossingOpponent();
 
-    pursueOpponent();
-
-    return;
-
-  }
+      break;
 
 
-  // ----------------------------------------------------------
-  // STATIONARY / CLOSE
-  // ----------------------------------------------------------
+    case MOTION_MOVING_AWAY:
 
-  if (opponentMotion ==
-      MOTION_STATIONARY) {
+      pursueOpponent();
 
-    attackOpponent();
-
-    return;
-
-  }
+      break;
 
 
-  // ----------------------------------------------------------
-  // UNKNOWN
-  // ----------------------------------------------------------
+    case MOTION_STATIONARY:
 
-  if (opponentDirection == OPP_LEFT) {
+      attackOpponent();
 
-    rotateLeft(TRACK_SPEED);
+      break;
 
-  }
 
-  else if (opponentDirection == OPP_RIGHT) {
+    default:
 
-    rotateRight(TRACK_SPEED);
+      attackOpponent();
 
-  }
-
-  else {
-
-    forward(TRACK_SPEED);
+      break;
 
   }
 
@@ -1605,40 +2280,143 @@ void proactiveController() {
 
 
 // ============================================================================
-// STARTUP
+// START BUTTON
 // ============================================================================
+//
+// D11 connected to button.
+// Other side of button connected to GND.
+//
+// INPUT_PULLUP means:
+//
+// HIGH = released
+// LOW  = pressed
+//
 
-void startCompetition() {
+void waitForStart() {
 
   stopMotors();
 
 
-  Serial.println();
-  Serial.println("==============================");
-  Serial.println("BESOMI SUMO ROBOT");
-  Serial.println("==============================");
-  Serial.println("5 SECOND START DELAY");
+  Serial.println(
+    "=============================="
+  );
+
+  Serial.println(
+    "BESOMI SUMO ROBOT READY"
+  );
+
+  Serial.println(
+    "PRESS START BUTTON"
+  );
+
+  Serial.println(
+    "=============================="
+  );
 
 
-  delay(500);
+  // --------------------------------------------------------------------------
+  // WAIT FOR BUTTON PRESS
+  // --------------------------------------------------------------------------
 
+  while (
+    digitalRead(
+      START_BUTTON_PIN
+    ) == HIGH
+  ) {
 
-  for (int i = 5; i >= 1; i--) {
+    stopMotors();
 
-    Serial.print("STARTING: ");
-
-    Serial.println(i);
-
-    delay(1000);
+    delay(5);
 
   }
 
 
-  Serial.println("GO!");
+  // --------------------------------------------------------------------------
+  // DEBOUNCE
+  // --------------------------------------------------------------------------
 
-  robotStarted = true;
+  delay(50);
 
-  robotStartTime = millis();
+
+  // --------------------------------------------------------------------------
+  // WAIT FOR RELEASE
+  // --------------------------------------------------------------------------
+
+  while (
+    digitalRead(
+      START_BUTTON_PIN
+    ) == LOW
+  ) {
+
+    stopMotors();
+
+    delay(5);
+
+  }
+
+
+  // --------------------------------------------------------------------------
+  // COUNTDOWN
+  // --------------------------------------------------------------------------
+
+  Serial.println(
+    "5"
+  );
+
+  delay(1000);
+
+
+  Serial.println(
+    "4"
+  );
+
+  delay(1000);
+
+
+  Serial.println(
+    "3"
+  );
+
+  delay(1000);
+
+
+  Serial.println(
+    "2"
+  );
+
+  delay(1000);
+
+
+  Serial.println(
+    "1"
+  );
+
+  delay(1000);
+
+
+  Serial.println(
+    "GO!"
+  );
+
+
+  // --------------------------------------------------------------------------
+  // START ROBOT
+  // --------------------------------------------------------------------------
+
+  robotStarted =
+    true;
+
+
+  openingMoveActive =
+    true;
+
+
+  openingMoveStarted =
+    millis();
+
+
+  searchDirectionChanged =
+    millis();
 
 }
 
@@ -1649,104 +2427,178 @@ void startCompetition() {
 
 void setup() {
 
-  // ----------------------------------------------------------
-  // UNO Q BRIDGE
-  // ----------------------------------------------------------
-
-  Bridge.begin();
-
-  // Current UNO Q versions support Serial through the monitor.
-  Serial.begin(115200);
+  Serial.begin(
+    115200
+  );
 
 
-  // ----------------------------------------------------------
+  // ==========================================================================
   // MOTOR PINS
-  // ----------------------------------------------------------
-
-  pinMode(M1_DIR, OUTPUT);
-  pinMode(M1_PWM, OUTPUT);
-
-  pinMode(M2_DIR, OUTPUT);
-  pinMode(M2_PWM, OUTPUT);
-
-  pinMode(M3_DIR, OUTPUT);
-  pinMode(M3_PWM, OUTPUT);
-
-  pinMode(M4_DIR, OUTPUT);
-  pinMode(M4_PWM, OUTPUT);
-
-
-  // ----------------------------------------------------------
-  // OBSTACLE SENSORS
-  // ----------------------------------------------------------
-
-  pinMode(OB_LEFT_PIN, INPUT);
-  pinMode(OB_RIGHT_PIN, INPUT);
-
-  pinMode(OB_BACK_RIGHT_PIN, INPUT);
-  pinMode(OB_BACK_LEFT_PIN, INPUT);
-
-  pinMode(OB_FRONT_RIGHT_PIN, INPUT);
-  pinMode(OB_FRONT_LEFT_PIN, INPUT);
-
-
-  // ----------------------------------------------------------
-  // LINE SENSORS
-  // ----------------------------------------------------------
-
-  pinMode(LINE_FRONT_LEFT_PIN, INPUT);
-  pinMode(LINE_FRONT_RIGHT_PIN, INPUT);
-
-  pinMode(LINE_BACK_LEFT_PIN, INPUT);
-  pinMode(LINE_BACK_RIGHT_PIN, INPUT);
-
-
-  // ----------------------------------------------------------
-  // ULTRASONIC
-  // ----------------------------------------------------------
+  // ==========================================================================
 
   pinMode(
-    ULTRASONIC_PIN,
+    M1_DIR,
+    OUTPUT
+  );
+
+  pinMode(
+    M1_PWM,
+    OUTPUT
+  );
+
+
+  pinMode(
+    M2_DIR,
+    OUTPUT
+  );
+
+  pinMode(
+    M2_PWM,
+    OUTPUT
+  );
+
+
+  pinMode(
+    M3_DIR,
+    OUTPUT
+  );
+
+  pinMode(
+    M3_PWM,
+    OUTPUT
+  );
+
+
+  pinMode(
+    M4_DIR,
+    OUTPUT
+  );
+
+  pinMode(
+    M4_PWM,
+    OUTPUT
+  );
+
+
+  // ==========================================================================
+  // IR SENSORS
+  // ==========================================================================
+  //
+  // INPUT_PULLUP prevents floating inputs.
+  //
+  // This is particularly important for the NPN MZ80 outputs.
+  //
+
+  pinMode(
+    IR_FRONT_LEFT_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    IR_FRONT_RIGHT_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    IR_LEFT_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    IR_RIGHT_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    IR_BACK_PIN,
+    INPUT_PULLUP
+  );
+
+
+  // ==========================================================================
+  // LINE SENSORS
+  // ==========================================================================
+
+  pinMode(
+    LINE_FRONT_LEFT_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    LINE_FRONT_RIGHT_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    LINE_BACK_PIN,
+    INPUT_PULLUP
+  );
+
+
+  // ==========================================================================
+  // START BUTTON
+  // ==========================================================================
+
+  pinMode(
+    START_BUTTON_PIN,
+    INPUT_PULLUP
+  );
+
+
+  // ==========================================================================
+  // ULTRASONIC
+  // ==========================================================================
+
+  pinMode(
+    ULTRASONIC_TRIG_PIN,
+    OUTPUT
+  );
+
+  pinMode(
+    ULTRASONIC_ECHO_PIN,
     INPUT
   );
 
 
-  // ----------------------------------------------------------
-  // ADC
-  // ----------------------------------------------------------
+  digitalWrite(
+    ULTRASONIC_TRIG_PIN,
+    LOW
+  );
 
-  analogReadResolution(14);
 
-
-  // ----------------------------------------------------------
-  // MOTOR INITIALIZATION
-  // ----------------------------------------------------------
+  // ==========================================================================
+  // INITIAL MOTOR STATE
+  // ==========================================================================
 
   stopMotors();
 
 
-  delay(1000);
+  delay(500);
 
 
-  Serial.println("SYSTEM READY");
+  Serial.println(
+    "SYSTEM INITIALIZED"
+  );
 
 
-  // ----------------------------------------------------------
-  // COMPETITION START
-  // ----------------------------------------------------------
+  // ==========================================================================
+  // WAIT FOR START
+  // ==========================================================================
 
-  startCompetition();
+  waitForStart();
 
 }
 
 
 // ============================================================================
-// MAIN LOOP
+// LOOP
 // ============================================================================
 
 void loop() {
 
-  if (!robotStarted) {
+  if (
+    !robotStarted
+  ) {
 
     stopMotors();
 
@@ -1754,8 +2606,6 @@ void loop() {
 
   }
 
-
-  // Everything is continuously evaluated.
 
   proactiveController();
 
