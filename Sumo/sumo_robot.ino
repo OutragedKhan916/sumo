@@ -9,10 +9,10 @@
 //
 // IR SENSORS: 5
 //
-// D0 = FRONT LEFT IR
-// D1 = FRONT RIGHT IR
-// D2 = LEFT IR
-// D3 = RIGHT IR
+// D2 = FRONT LEFT IR
+// D0 = FRONT RIGHT IR
+// D1 = LEFT IR
+// D3 = RIGHT IR           needs to be flipped
 // D4 = BACK CENTER IR
 //
 // LINE SENSORS: 3
@@ -67,10 +67,10 @@ const bool INVERT_M4 = true;
 // IR SENSOR PINS
 // ============================================================================
 
-const int IR_FRONT_LEFT_PIN  = D0;
-const int IR_FRONT_RIGHT_PIN = D1;
+const int IR_FRONT_LEFT_PIN  = D2;
+const int IR_FRONT_RIGHT_PIN = D0;
 
-const int IR_LEFT_PIN  = D2;
+const int IR_LEFT_PIN  = D1;
 const int IR_RIGHT_PIN = D3;
 
 const int IR_BACK_PIN = D4;
