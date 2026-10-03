@@ -1,6 +1,7 @@
 // ============================================================
-// UNO Q SUMO ROBOT - FULL TEST CODE
-// Sensors + Ultrasonic + Motors
+// UNO Q SUMO ROBOT - SWITCHABLE TEST CODE
+// 1 = MOTOR TEST
+// 2 = SENSOR TEST
 // ============================================================
 
 
@@ -65,6 +66,16 @@
 
 
 // ============================================================
+// TEST MODES
+// ============================================================
+
+#define MOTOR_MODE  1
+#define SENSOR_MODE 2
+
+int testMode = MOTOR_MODE;
+
+
+// ============================================================
 // SETUP
 // ============================================================
 
@@ -73,6 +84,7 @@ void setup() {
   Serial.begin(9600);
 
   delay(2000);
+
 
   // -------------------------
   // IR
@@ -122,8 +134,11 @@ void setup() {
 
   Serial.println();
   Serial.println("========================================");
-  Serial.println("        FULL HARDWARE TEST");
+  Serial.println("       UNO Q SUMO TEST SYSTEM");
   Serial.println("========================================");
+  Serial.println();
+  Serial.println("Press 1 = MOTOR TEST");
+  Serial.println("Press 2 = SENSOR TEST");
   Serial.println();
 }
 
@@ -135,7 +150,224 @@ void setup() {
 void loop() {
 
   // ==========================================================
-  // SENSOR TEST
+  // CHECK FOR KEYBOARD COMMAND
+  // ==========================================================
+
+  if (Serial.available() > 0) {
+
+    char command = Serial.read();
+
+
+    // -------------------------
+    // MOTOR MODE
+    // -------------------------
+
+    if (command == '1') {
+
+      stopMotors();
+
+      testMode = MOTOR_MODE;
+
+      Serial.println();
+      Serial.println("========================================");
+      Serial.println("        MOTOR TEST MODE");
+      Serial.println("========================================");
+      Serial.println("Press 2 to switch to SENSOR TEST");
+      Serial.println();
+    }
+
+
+    // -------------------------
+    // SENSOR MODE
+    // -------------------------
+
+    else if (command == '2') {
+
+      stopMotors();
+
+      testMode = SENSOR_MODE;
+
+      Serial.println();
+      Serial.println("========================================");
+      Serial.println("        SENSOR TEST MODE");
+      Serial.println("========================================");
+      Serial.println("Press 1 to switch to MOTOR TEST");
+      Serial.println();
+    }
+  }
+
+
+  // ==========================================================
+  // RUN SELECTED MODE
+  // ==========================================================
+
+  if (testMode == MOTOR_MODE) {
+
+    motorTest();
+
+  }
+  else if (testMode == SENSOR_MODE) {
+
+    sensorTest();
+
+  }
+}
+
+
+// ============================================================
+// MOTOR TEST
+// ============================================================
+
+void motorTest() {
+
+  // -------------------------
+  // Check if user pressed 2
+  // -------------------------
+
+  if (Serial.available() > 0) {
+
+    char command = Serial.read();
+
+    if (command == '2') {
+
+      stopMotors();
+
+      testMode = SENSOR_MODE;
+
+      Serial.println();
+      Serial.println("Switching to SENSOR TEST...");
+      Serial.println();
+
+      return;
+    }
+  }
+
+
+  Serial.println("----------------------------------------");
+  Serial.println("MOTOR TEST");
+  Serial.println("Keep robot lifted!");
+  Serial.println();
+
+
+  // -------------------------
+  // MOTOR 1
+  // -------------------------
+
+  Serial.println("M1 running...");
+
+  runMotor(
+    M1_DIR,
+    M1_PWM,
+    INVERT_M1
+  );
+
+  delay(1000);
+
+
+  // Check for mode switch
+  if (checkForSensorMode()) return;
+
+
+  // -------------------------
+  // MOTOR 2
+  // -------------------------
+
+  Serial.println("M2 running...");
+
+  runMotor(
+    M2_DIR,
+    M2_PWM,
+    INVERT_M2
+  );
+
+  delay(1000);
+
+
+  if (checkForSensorMode()) return;
+
+
+  // -------------------------
+  // MOTOR 3
+  // -------------------------
+
+  Serial.println("M3 running...");
+
+  runMotor(
+    M3_DIR,
+    M3_PWM,
+    INVERT_M3
+  );
+
+  delay(1000);
+
+
+  if (checkForSensorMode()) return;
+
+
+  // -------------------------
+  // MOTOR 4
+  // -------------------------
+
+  Serial.println("M4 running...");
+
+  runMotor(
+    M4_DIR,
+    M4_PWM,
+    INVERT_M4
+  );
+
+  delay(1000);
+
+
+  if (checkForSensorMode()) return;
+
+
+  // -------------------------
+  // STOP
+  // -------------------------
+
+  stopMotors();
+
+  Serial.println();
+  Serial.println("ALL MOTORS STOPPED");
+  Serial.println("Repeating motor test...");
+  Serial.println();
+
+  delay(1000);
+}
+
+
+// ============================================================
+// SENSOR TEST
+// ============================================================
+
+void sensorTest() {
+
+  // -------------------------
+  // Check for motor command
+  // -------------------------
+
+  if (Serial.available() > 0) {
+
+    char command = Serial.read();
+
+    if (command == '1') {
+
+      stopMotors();
+
+      testMode = MOTOR_MODE;
+
+      Serial.println();
+      Serial.println("Switching to MOTOR TEST...");
+      Serial.println();
+
+      return;
+    }
+  }
+
+
+  // ==========================================================
+  // READ IR
   // ==========================================================
 
   int irFL = digitalRead(IR_FRONT_LEFT);
@@ -146,6 +378,10 @@ void loop() {
   int irBack = !digitalRead(IR_BACK);
 
 
+  // ==========================================================
+  // READ LINE SENSORS
+  // ==========================================================
+
   int lineFL = digitalRead(LINE_FRONT_LEFT);
 
   int lineFR = digitalRead(LINE_FRONT_RIGHT);
@@ -154,7 +390,7 @@ void loop() {
 
 
   // ==========================================================
-  // ULTRASONIC
+  // READ ULTRASONIC
   // ==========================================================
 
   digitalWrite(ULTRASONIC_TRIG, LOW);
@@ -176,7 +412,7 @@ void loop() {
 
 
   // ==========================================================
-  // PRINT SENSOR VALUES
+  // PRINT
   // ==========================================================
 
   Serial.println("----------------------------------------");
@@ -216,89 +452,15 @@ void loop() {
   }
 
 
-  // ==========================================================
-  // MOTOR TEST
-  // ==========================================================
-
   Serial.println();
-  Serial.println("MOTOR TEST");
-  Serial.println("Keep robot lifted!");
-  Serial.println();
-
-
-  // -------------------------
-  // MOTOR 1
-  // -------------------------
-
-  Serial.println("M1 running...");
-  
-  runMotor(
-    M1_DIR,
-    M1_PWM,
-    INVERT_M1
-  );
-
-  delay(1000);
-
-
-  // -------------------------
-  // MOTOR 2
-  // -------------------------
-
-  Serial.println("M2 running...");
-
-  runMotor(
-    M2_DIR,
-    M2_PWM,
-    INVERT_M2
-  );
-
-  delay(1000);
-
-
-  // -------------------------
-  // MOTOR 3
-  // -------------------------
-
-  Serial.println("M3 running...");
-
-  runMotor(
-    M3_DIR,
-    M3_PWM,
-    INVERT_M3
-  );
-
-  delay(1000);
-
-
-  // -------------------------
-  // MOTOR 4
-  // -------------------------
-
-  Serial.println("M4 running...");
-
-  runMotor(
-    M4_DIR,
-    M4_PWM,
-    INVERT_M4
-  );
-
-  delay(1000);
+  Serial.println("Press 1 = MOTOR TEST");
+  Serial.println("Press 2 = SENSOR TEST");
 
 
   // ==========================================================
-  // STOP
+  // 1 SECOND SENSOR INTERVAL
   // ==========================================================
 
-  stopMotors();
-
-  Serial.println();
-  Serial.println("ALL MOTORS STOPPED");
-
-  Serial.println("========================================");
-
-
-  // Wait 1 second before repeating
   delay(1000);
 }
 
@@ -343,6 +505,36 @@ void runMotor(
     pwmPin,
     0
   );
+}
+
+
+// ============================================================
+// CHECK FOR SENSOR MODE
+// ============================================================
+
+bool checkForSensorMode() {
+
+  if (Serial.available() > 0) {
+
+    char command = Serial.read();
+
+    if (command == '2') {
+
+      stopMotors();
+
+      testMode = SENSOR_MODE;
+
+      Serial.println();
+      Serial.println("========================================");
+      Serial.println("        SENSOR TEST MODE");
+      Serial.println("========================================");
+      Serial.println();
+
+      return true;
+    }
+  }
+
+  return false;
 }
 
 
