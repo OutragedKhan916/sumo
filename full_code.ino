@@ -354,7 +354,7 @@ bool R()
 bool BL()
 {
   // BACK IR SIGNAL IS FLIPPED
-  return !digitalRead(IR_BACK_PIN);
+  return digitalRead(IR_BACK_PIN);
 }
 
 

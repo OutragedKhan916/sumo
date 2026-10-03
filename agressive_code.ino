@@ -269,7 +269,7 @@ bool backEnemy() {
 
   return digitalRead(
     IR_BACK
-  ) == HIGH;
+  ) == LOW;
 }
 
 

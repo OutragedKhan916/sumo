@@ -374,8 +374,7 @@ void sensorTest() {
 
   int irFR = digitalRead(IR_FRONT_RIGHT);
 
-  // Back IR is flipped
-  int irBack = !digitalRead(IR_BACK);
+  int irBack = digitalRead(IR_BACK);
 
 
   // ==========================================================
