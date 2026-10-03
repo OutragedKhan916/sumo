@@ -1,11 +1,13 @@
 // ============================================================
 // UNO Q AGGRESSIVE SUMO ROBOT
 // ============================================================
+//
 // Behavior:
 // 1. LINE SENSORS ALWAYS HAVE PRIORITY
 // 2. If enemy detected -> ATTACK HARD
 // 3. If no enemy -> SEARCH / SWEEP
 // 4. Back IR is inverted
+//
 // ============================================================
 
 
@@ -101,7 +103,7 @@ void setup() {
 
   Serial.begin(9600);
 
-  // IR
+  // IR sensors
   pinMode(IR_FRONT_LEFT, INPUT);
   pinMode(IR_FRONT_RIGHT, INPUT);
   pinMode(IR_BACK, INPUT);
@@ -130,11 +132,7 @@ void setup() {
 
   stopMotors();
 
-  Serial.println("================================");
-  Serial.println("   AGGRESSIVE SUMO ROBOT");
-  Serial.println("================================");
-
-  delay(2000);
+  delay(1000);
 }
 
 
@@ -160,8 +158,8 @@ void setMotor(int dirPin, int pwmPin, int speed, bool inverted) {
 
 void drive(int leftSpeed, int rightSpeed) {
 
-  setMotor(M1_DIR, M1_PWM, leftSpeed,  INVERT_M1);
-  setMotor(M2_DIR, M2_PWM, leftSpeed,  INVERT_M2);
+  setMotor(M1_DIR, M1_PWM, leftSpeed, INVERT_M1);
+  setMotor(M2_DIR, M2_PWM, leftSpeed, INVERT_M2);
 
   setMotor(M3_DIR, M3_PWM, rightSpeed, INVERT_M3);
   setMotor(M4_DIR, M4_PWM, rightSpeed, INVERT_M4);
@@ -292,7 +290,9 @@ bool ultrasonicEnemy() {
 bool boundaryDetected() {
 
   if (frontLeftLine()) return true;
+
   if (frontRightLine()) return true;
+
   if (backLine()) return true;
 
   return false;
@@ -300,7 +300,7 @@ bool boundaryDetected() {
 
 
 // ============================================================
-// EMERGENCY BOUNDARY ESCAPE
+// BOUNDARY ESCAPE
 // ============================================================
 
 void escapeBoundary() {
@@ -310,13 +310,9 @@ void escapeBoundary() {
   bool rearLine  = backLine();
 
 
-  // --------------------------------------------
-  // BOTH FRONT SENSORS SEE BOUNDARY
-  // --------------------------------------------
+  // BOTH FRONT LINE SENSORS
 
   if (leftLine && rightLine) {
-
-    stopMotors();
 
     backward();
 
@@ -330,13 +326,9 @@ void escapeBoundary() {
   }
 
 
-  // --------------------------------------------
-  // FRONT LEFT SEES BOUNDARY
-  // --------------------------------------------
+  // FRONT LEFT
 
   if (leftLine) {
-
-    stopMotors();
 
     backward();
 
@@ -350,13 +342,9 @@ void escapeBoundary() {
   }
 
 
-  // --------------------------------------------
-  // FRONT RIGHT SEES BOUNDARY
-  // --------------------------------------------
+  // FRONT RIGHT
 
   if (rightLine) {
-
-    stopMotors();
 
     backward();
 
@@ -370,13 +358,9 @@ void escapeBoundary() {
   }
 
 
-  // --------------------------------------------
-  // BACK SENSOR SEES BOUNDARY
-  // --------------------------------------------
+  // BACK
 
   if (rearLine) {
-
-    stopMotors();
 
     forward();
 
@@ -424,10 +408,8 @@ void attackEnemy() {
   bool rear  = backEnemy();
 
 
-  // --------------------------------------------
   // BOTH FRONT IR
-  // FULL SPEED ATTACK
-  // --------------------------------------------
+  // FULL ATTACK
 
   if (left && right) {
 
@@ -437,10 +419,7 @@ void attackEnemy() {
   }
 
 
-  // --------------------------------------------
   // FRONT LEFT
-  // BIAS LEFT
-  // --------------------------------------------
 
   if (left) {
 
@@ -450,10 +429,7 @@ void attackEnemy() {
   }
 
 
-  // --------------------------------------------
   // FRONT RIGHT
-  // BIAS RIGHT
-  // --------------------------------------------
 
   if (right) {
 
@@ -463,10 +439,7 @@ void attackEnemy() {
   }
 
 
-  // --------------------------------------------
   // ENEMY BEHIND
-  // TURN HARD
-  // --------------------------------------------
 
   if (rear) {
 
@@ -476,17 +449,15 @@ void attackEnemy() {
   }
 
 
-  // --------------------------------------------
   // ULTRASONIC ONLY
   // CHARGE FORWARD
-  // --------------------------------------------
 
   forward();
 }
 
 
 // ============================================================
-// SEARCH SYSTEM
+// SEARCH
 // ============================================================
 
 void searchForEnemy() {
@@ -494,7 +465,8 @@ void searchForEnemy() {
   unsigned long now = millis();
 
 
-  // Change search direction every 700 ms
+  // Change direction every 700 ms
+
   if (now - lastSearchChange >= 700) {
 
     lastSearchChange = now;
@@ -503,20 +475,11 @@ void searchForEnemy() {
   }
 
 
-  // --------------------------------------------
-  // SWEEP RIGHT
-  // --------------------------------------------
-
   if (searchRight) {
 
     drive(SEARCH_SPEED, -SEARCH_SPEED);
 
   }
-
-  // --------------------------------------------
-  // SWEEP LEFT
-  // --------------------------------------------
-
   else {
 
     drive(-SEARCH_SPEED, SEARCH_SPEED);
@@ -525,13 +488,13 @@ void searchForEnemy() {
 
 
 // ============================================================
-// MAIN CONTROLLER
+// MAIN LOOP
 // ============================================================
 
 void loop() {
 
   // ==========================================================
-  // LINE SENSORS ARE ALWAYS CHECKED FIRST
+  // 1. LINE SENSORS ALWAYS CHECKED FIRST
   // ==========================================================
 
   if (boundaryDetected()) {
@@ -543,7 +506,7 @@ void loop() {
 
 
   // ==========================================================
-  // CHECK FOR ENEMY
+  // 2. LOOK FOR ENEMY
   // ==========================================================
 
   if (enemyDetected()) {
@@ -555,7 +518,7 @@ void loop() {
 
 
   // ==========================================================
-  // NOTHING FOUND
+  // 3. NOTHING FOUND
   // SEARCH
   // ==========================================================
 
