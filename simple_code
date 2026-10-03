@@ -1,0 +1,563 @@
+// ============================================================
+// UNO Q AGGRESSIVE SUMO ROBOT
+// ============================================================
+// Behavior:
+// 1. LINE SENSORS ALWAYS HAVE PRIORITY
+// 2. If enemy detected -> ATTACK HARD
+// 3. If no enemy -> SEARCH / SWEEP
+// 4. Back IR is inverted
+// ============================================================
+
+
+// ============================================================
+// IR SENSORS
+// ============================================================
+
+#define IR_FRONT_LEFT   0    // D0
+#define IR_FRONT_RIGHT  4    // D4
+#define IR_BACK         2    // D2
+
+
+// ============================================================
+// LINE SENSORS
+// ============================================================
+
+#define LINE_FRONT_LEFT   A3
+#define LINE_FRONT_RIGHT  A1
+#define LINE_BACK         A2
+
+
+// ============================================================
+// ULTRASONIC
+// ============================================================
+
+#define ULTRASONIC_TRIG  11   // D11
+#define ULTRASONIC_ECHO  A4   // A4
+
+
+// ============================================================
+// MOTORS
+// ============================================================
+
+// Motor 1
+#define M1_DIR  7
+#define M1_PWM  9
+
+// Motor 2
+#define M2_DIR  8
+#define M2_PWM  10
+
+// Motor 3
+#define M3_DIR  12
+#define M3_PWM  5
+
+// Motor 4
+#define M4_DIR  13
+#define M4_PWM  6
+
+
+// ============================================================
+// MOTOR INVERSION
+// ============================================================
+
+#define INVERT_M1 false
+#define INVERT_M2 false
+#define INVERT_M3 true
+#define INVERT_M4 true
+
+
+// ============================================================
+// SPEED SETTINGS
+// ============================================================
+
+#define ATTACK_SPEED 255
+#define SEARCH_SPEED 180
+#define TURN_SPEED   230
+#define ESCAPE_SPEED 255
+
+
+// ============================================================
+// ULTRASONIC SETTINGS
+// ============================================================
+
+#define ENEMY_DISTANCE 100
+#define ULTRA_TIMEOUT 8000
+
+
+// ============================================================
+// SEARCH SETTINGS
+// ============================================================
+
+unsigned long lastSearchChange = 0;
+
+bool searchRight = true;
+
+
+// ============================================================
+// SETUP
+// ============================================================
+
+void setup() {
+
+  Serial.begin(9600);
+
+  // IR
+  pinMode(IR_FRONT_LEFT, INPUT);
+  pinMode(IR_FRONT_RIGHT, INPUT);
+  pinMode(IR_BACK, INPUT);
+
+  // Line sensors
+  pinMode(LINE_FRONT_LEFT, INPUT);
+  pinMode(LINE_FRONT_RIGHT, INPUT);
+  pinMode(LINE_BACK, INPUT);
+
+  // Ultrasonic
+  pinMode(ULTRASONIC_TRIG, OUTPUT);
+  pinMode(ULTRASONIC_ECHO, INPUT);
+
+  // Motors
+  pinMode(M1_DIR, OUTPUT);
+  pinMode(M1_PWM, OUTPUT);
+
+  pinMode(M2_DIR, OUTPUT);
+  pinMode(M2_PWM, OUTPUT);
+
+  pinMode(M3_DIR, OUTPUT);
+  pinMode(M3_PWM, OUTPUT);
+
+  pinMode(M4_DIR, OUTPUT);
+  pinMode(M4_PWM, OUTPUT);
+
+  stopMotors();
+
+  Serial.println("================================");
+  Serial.println("   AGGRESSIVE SUMO ROBOT");
+  Serial.println("================================");
+
+  delay(2000);
+}
+
+
+// ============================================================
+// MOTOR CONTROL
+// ============================================================
+
+void setMotor(int dirPin, int pwmPin, int speed, bool inverted) {
+
+  speed = constrain(speed, -255, 255);
+
+  bool forward = speed >= 0;
+
+  if (inverted) {
+    forward = !forward;
+  }
+
+  digitalWrite(dirPin, forward ? HIGH : LOW);
+
+  analogWrite(pwmPin, abs(speed));
+}
+
+
+void drive(int leftSpeed, int rightSpeed) {
+
+  setMotor(M1_DIR, M1_PWM, leftSpeed,  INVERT_M1);
+  setMotor(M2_DIR, M2_PWM, leftSpeed,  INVERT_M2);
+
+  setMotor(M3_DIR, M3_PWM, rightSpeed, INVERT_M3);
+  setMotor(M4_DIR, M4_PWM, rightSpeed, INVERT_M4);
+}
+
+
+void stopMotors() {
+
+  analogWrite(M1_PWM, 0);
+  analogWrite(M2_PWM, 0);
+  analogWrite(M3_PWM, 0);
+  analogWrite(M4_PWM, 0);
+}
+
+
+// ============================================================
+// MOVEMENT
+// ============================================================
+
+void forward() {
+  drive(ATTACK_SPEED, ATTACK_SPEED);
+}
+
+
+void backward() {
+  drive(-ESCAPE_SPEED, -ESCAPE_SPEED);
+}
+
+
+void turnLeft() {
+  drive(-TURN_SPEED, TURN_SPEED);
+}
+
+
+void turnRight() {
+  drive(TURN_SPEED, -TURN_SPEED);
+}
+
+
+// ============================================================
+// IR DETECTION
+// ============================================================
+
+bool frontLeftEnemy() {
+
+  return digitalRead(IR_FRONT_LEFT) == LOW;
+}
+
+
+bool frontRightEnemy() {
+
+  return digitalRead(IR_FRONT_RIGHT) == LOW;
+}
+
+
+bool backEnemy() {
+
+  // BACK IR IS FLIPPED
+  return digitalRead(IR_BACK) == HIGH;
+}
+
+
+// ============================================================
+// LINE DETECTION
+// ============================================================
+
+bool frontLeftLine() {
+
+  return digitalRead(LINE_FRONT_LEFT) == LOW;
+}
+
+
+bool frontRightLine() {
+
+  return digitalRead(LINE_FRONT_RIGHT) == LOW;
+}
+
+
+bool backLine() {
+
+  return digitalRead(LINE_BACK) == LOW;
+}
+
+
+// ============================================================
+// ULTRASONIC
+// ============================================================
+
+float getDistance() {
+
+  digitalWrite(ULTRASONIC_TRIG, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(ULTRASONIC_TRIG, HIGH);
+  delayMicroseconds(10);
+
+  digitalWrite(ULTRASONIC_TRIG, LOW);
+
+  unsigned long duration =
+    pulseIn(ULTRASONIC_ECHO, HIGH, ULTRA_TIMEOUT);
+
+  if (duration == 0) {
+    return -1;
+  }
+
+  float distance = duration * 0.0343 / 2.0;
+
+  return distance;
+}
+
+
+bool ultrasonicEnemy() {
+
+  float distance = getDistance();
+
+  if (distance > 0 && distance <= ENEMY_DISTANCE) {
+    return true;
+  }
+
+  return false;
+}
+
+
+// ============================================================
+// LINE SAFETY
+// ============================================================
+
+bool boundaryDetected() {
+
+  if (frontLeftLine()) return true;
+  if (frontRightLine()) return true;
+  if (backLine()) return true;
+
+  return false;
+}
+
+
+// ============================================================
+// EMERGENCY BOUNDARY ESCAPE
+// ============================================================
+
+void escapeBoundary() {
+
+  bool leftLine  = frontLeftLine();
+  bool rightLine = frontRightLine();
+  bool rearLine  = backLine();
+
+
+  // --------------------------------------------
+  // BOTH FRONT SENSORS SEE BOUNDARY
+  // --------------------------------------------
+
+  if (leftLine && rightLine) {
+
+    stopMotors();
+
+    backward();
+
+    delay(300);
+
+    turnRight();
+
+    delay(350);
+
+    return;
+  }
+
+
+  // --------------------------------------------
+  // FRONT LEFT SEES BOUNDARY
+  // --------------------------------------------
+
+  if (leftLine) {
+
+    stopMotors();
+
+    backward();
+
+    delay(280);
+
+    turnRight();
+
+    delay(300);
+
+    return;
+  }
+
+
+  // --------------------------------------------
+  // FRONT RIGHT SEES BOUNDARY
+  // --------------------------------------------
+
+  if (rightLine) {
+
+    stopMotors();
+
+    backward();
+
+    delay(280);
+
+    turnLeft();
+
+    delay(300);
+
+    return;
+  }
+
+
+  // --------------------------------------------
+  // BACK SENSOR SEES BOUNDARY
+  // --------------------------------------------
+
+  if (rearLine) {
+
+    stopMotors();
+
+    forward();
+
+    delay(300);
+
+    return;
+  }
+}
+
+
+// ============================================================
+// ENEMY DETECTION
+// ============================================================
+
+bool enemyDetected() {
+
+  if (frontLeftEnemy()) {
+    return true;
+  }
+
+  if (frontRightEnemy()) {
+    return true;
+  }
+
+  if (backEnemy()) {
+    return true;
+  }
+
+  if (ultrasonicEnemy()) {
+    return true;
+  }
+
+  return false;
+}
+
+
+// ============================================================
+// AGGRESSIVE ATTACK
+// ============================================================
+
+void attackEnemy() {
+
+  bool left  = frontLeftEnemy();
+  bool right = frontRightEnemy();
+  bool rear  = backEnemy();
+
+
+  // --------------------------------------------
+  // BOTH FRONT IR
+  // FULL SPEED ATTACK
+  // --------------------------------------------
+
+  if (left && right) {
+
+    forward();
+
+    return;
+  }
+
+
+  // --------------------------------------------
+  // FRONT LEFT
+  // BIAS LEFT
+  // --------------------------------------------
+
+  if (left) {
+
+    drive(120, ATTACK_SPEED);
+
+    return;
+  }
+
+
+  // --------------------------------------------
+  // FRONT RIGHT
+  // BIAS RIGHT
+  // --------------------------------------------
+
+  if (right) {
+
+    drive(ATTACK_SPEED, 120);
+
+    return;
+  }
+
+
+  // --------------------------------------------
+  // ENEMY BEHIND
+  // TURN HARD
+  // --------------------------------------------
+
+  if (rear) {
+
+    turnLeft();
+
+    return;
+  }
+
+
+  // --------------------------------------------
+  // ULTRASONIC ONLY
+  // CHARGE FORWARD
+  // --------------------------------------------
+
+  forward();
+}
+
+
+// ============================================================
+// SEARCH SYSTEM
+// ============================================================
+
+void searchForEnemy() {
+
+  unsigned long now = millis();
+
+
+  // Change search direction every 700 ms
+  if (now - lastSearchChange >= 700) {
+
+    lastSearchChange = now;
+
+    searchRight = !searchRight;
+  }
+
+
+  // --------------------------------------------
+  // SWEEP RIGHT
+  // --------------------------------------------
+
+  if (searchRight) {
+
+    drive(SEARCH_SPEED, -SEARCH_SPEED);
+
+  }
+
+  // --------------------------------------------
+  // SWEEP LEFT
+  // --------------------------------------------
+
+  else {
+
+    drive(-SEARCH_SPEED, SEARCH_SPEED);
+  }
+}
+
+
+// ============================================================
+// MAIN CONTROLLER
+// ============================================================
+
+void loop() {
+
+  // ==========================================================
+  // LINE SENSORS ARE ALWAYS CHECKED FIRST
+  // ==========================================================
+
+  if (boundaryDetected()) {
+
+    escapeBoundary();
+
+    return;
+  }
+
+
+  // ==========================================================
+  // CHECK FOR ENEMY
+  // ==========================================================
+
+  if (enemyDetected()) {
+
+    attackEnemy();
+
+    return;
+  }
+
+
+  // ==========================================================
+  // NOTHING FOUND
+  // SEARCH
+  // ==========================================================
+
+  searchForEnemy();
+}

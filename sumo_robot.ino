@@ -29,6 +29,49 @@
 // D1 = START BUTTON
 //
 // ============================================================================
+================================================
+
+#define IR_FRONT_LEFT   0    // D0
+#define IR_FRONT_RIGHT  4    // D4
+#define IR_BACK         2    // D2
+
+
+// ============================================================
+// LINE SENSORS
+// ============================================================
+
+#define LINE_FRONT_LEFT   A3
+#define LINE_FRONT_RIGHT  A1
+#define LINE_BACK         A2
+
+
+// ============================================================
+// ULTRASONIC
+// ============================================================
+
+#define ULTRASONIC_TRIG  11   // D11
+#define ULTRASONIC_ECHO  A4   // A4
+
+
+// ============================================================
+// MOTORS
+// ============================================================
+
+// Motor 1
+#define M1_DIR  7
+#define M1_PWM  9
+
+// Motor 2
+#define M2_DIR  8
+#define M2_PWM  10
+
+// Motor 3
+#define M3_DIR  12
+#define M3_PWM  5
+
+// Motor 4
+#define M4_DIR  13
+#define M4_PWM  6
 
 
 // ============================================================================
@@ -54,19 +97,19 @@ const int M4_PWM = D6;
 // MOTOR INVERSION
 // ============================================================================
 
-const bool INVERT_M1 = false;
-const bool INVERT_M2 = false;
+const bool INVERT_M1 = normal;
+const bool INVERT_M2 = normal;
 
-const bool INVERT_M3 = true;
-const bool INVERT_M4 = true;
+const bool INVERT_M3 = false;
+const bool INVERT_M4 = false;
 
 
 // ============================================================================
 // IR SENSOR PINS
 // ============================================================================
 
-const int IR_FRONT_LEFT_PIN  = D4;
-const int IR_FRONT_RIGHT_PIN = D0;
+const int IR_FRONT_LEFT_PIN  = D0;
+const int IR_FRONT_RIGHT_PIN = D4;
 const int IR_BACK_PIN         = D2;
 
 // No dedicated left/right side IR sensors in the current 3-IR layout.
@@ -76,10 +119,10 @@ const int IR_BACK_PIN         = D2;
 // LINE SENSOR PINS
 // ============================================================================
 
-const int LINE_FRONT_LEFT_PIN  = A1;
-const int LINE_FRONT_RIGHT_PIN = A3;
+const int LINE_FRONT_LEFT_PIN  = A3;
+const int LINE_FRONT_RIGHT_PIN = A1;
 
-const int LINE_BACK_PIN = A5;
+const int LINE_BACK_PIN = A2;
 
 
 // ============================================================================
@@ -94,7 +137,7 @@ const int START_BUTTON_PIN = D1;
 // ============================================================================
 
 const int ULTRASONIC_TRIG_PIN = D11;
-const int ULTRASONIC_ECHO_PIN = A0;
+const int ULTRASONIC_ECHO_PIN = A4;
 
 
 // ============================================================================
