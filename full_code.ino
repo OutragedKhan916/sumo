@@ -26,7 +26,7 @@
 
 #define LINE_FRONT_LEFT_PIN   A1
 #define LINE_FRONT_RIGHT_PIN  A3
-#define LINE_BACK_PIN         A2
+#define LINE_BACK_PIN         A5
 
 
 // ULTRASONIC

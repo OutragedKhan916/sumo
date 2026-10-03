@@ -20,7 +20,7 @@
 
 #define LINE_FRONT_LEFT   A1
 #define LINE_FRONT_RIGHT  A3
-#define LINE_BACK         A2
+#define LINE_BACK         A5
 
 
 // ============================================================
