@@ -18,8 +18,8 @@
 // LINE SENSORS
 // ============================================================
 
-#define LINE_FRONT_LEFT   A3
-#define LINE_FRONT_RIGHT  A1
+#define LINE_FRONT_LEFT   A1
+#define LINE_FRONT_RIGHT  A3
 #define LINE_BACK         A2
 
 
